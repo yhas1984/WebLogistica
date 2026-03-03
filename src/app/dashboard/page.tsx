@@ -1,130 +1,108 @@
 import { createClient } from '@/lib/supabase/server';
-import { Package, Clock, Truck, CheckCircle2, FileText, Plus } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { Package, Download, Truck, Clock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { DashboardActions } from '@/components/dashboard-actions';
 
 export const metadata = {
     title: 'Mis Envíos | WebLogistica',
-    description: 'Panel de control de tus envíos en WebLogistica',
-};
-
-const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    quoted: { label: 'Cotizado', color: 'text-white/50', icon: <Clock className="w-4 h-4" /> },
-    paid: { label: 'Pagado', color: 'text-blue-400', icon: <CheckCircle2 className="w-4 h-4" /> },
-    label_created: { label: 'Etiqueta lista', color: 'text-purple-400', icon: <FileText className="w-4 h-4" /> },
-    in_transit: { label: 'En tránsito', color: 'text-amber-400', icon: <Truck className="w-4 h-4" /> },
-    delivered: { label: 'Entregado', color: 'text-emerald-400', icon: <CheckCircle2 className="w-4 h-4" /> },
+    description: 'Gestiona y rastrea tus paquetes globales.',
 };
 
 export default async function DashboardPage() {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    // Fetch real shipments for the logged in user
-    const { data: shipments = [] } = await supabase
+    // 1. Verificar sesión
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect('/login');
+
+    // 2. Obtener envíos del usuario
+    const { data: shipments } = await supabase
         .from('shipments')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-    // Calculate real stats
-    const totalShipments = shipments?.length || 0;
-    const inTransit = shipments?.filter(s => s.status === 'in_transit').length || 0;
-    const delivered = shipments?.filter(s => s.status === 'delivered').length || 0;
-
     return (
-        <div className="px-6 py-12 max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-10">
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Package className="w-6 h-6 text-blue-400" />
-                        Mis Envíos
-                    </h1>
-                    <p className="text-white/40 text-sm mt-1">
-                        Gestiona y rastrea todos tus envíos
-                    </p>
-                </div>
-                <Link
-                    href="/"
-                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-white
-                     bg-gradient-to-r from-blue-600 to-purple-600
-                     hover:opacity-90 transition-opacity flex items-center gap-2"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nuevo Envío
-                </Link>
-            </div>
+        <div className="container mx-auto py-10 px-4 max-w-5xl">
+            <header className="mb-8 pl-2 border-l-4 border-blue-500">
+                <h1 className="text-3xl font-bold text-white">Mis Envíos</h1>
+                <p className="text-white/60 mt-1">Gestiona y rastrea tus paquetes globales.</p>
+            </header>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                {[
-                    { label: 'Total Envíos', value: totalShipments.toString(), color: 'text-white' },
-                    { label: 'En Tránsito', value: inTransit.toString(), color: 'text-amber-400' },
-                    { label: 'Entregados', value: delivered.toString(), color: 'text-emerald-400' },
-                ].map((stat, i) => (
-                    <div key={i} className="bento-card text-center">
-                        <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
-                        <p className="text-xs text-white/40 mt-1 uppercase tracking-wider">
-                            {stat.label}
-                        </p>
-                    </div>
-                ))}
-            </div>
-
-            {/* Shipments List */}
-            <div className="space-y-3">
-                {(!shipments || shipments.length === 0) ? (
-                    <div className="bento-card py-12 text-center">
-                        <div className="icon-badge icon-badge-blue mx-auto mb-4">
-                            <Package className="w-6 h-6" />
-                        </div>
-                        <h3 className="text-white font-semibold mb-1">No tienes envíos todavía</h3>
-                        <p className="text-white/40 text-sm mb-6 max-w-xs mx-auto">
-                            Comienza realizando una cotización para ver tus envíos aquí.
-                        </p>
+            <div className="grid gap-6">
+                {!shipments || shipments.length === 0 ? (
+                    <div className="bento-card border-dashed text-center py-16">
+                        <Package className="w-12 h-12 text-blue-500/50 mx-auto mb-4" />
+                        <h2 className="text-xl text-white font-medium mb-2">Todavía no has realizado ningún envío.</h2>
+                        <p className="text-white/40 mb-6">Realiza tu primera cotización para ver tus envíos aquí.</p>
                         <Link
                             href="/"
-                            className="text-blue-400 text-sm font-medium hover:underline"
+                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-blue-600 text-white hover:bg-blue-600/90 h-10 px-6 py-2"
                         >
-                            Realizar primera cotización &rarr;
+                            Empezar ahora <ArrowRight className="ml-2 w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
                     shipments.map((shipment) => {
-                        const status = STATUS_MAP[shipment.status] || STATUS_MAP.quoted;
-                        // Extract destination info from JSONB or fallback
-                        const dest = shipment.destination_data as any;
-                        const destinationLabel = dest?.city
-                            ? `${dest.city}, ${dest.country}`
-                            : 'Destino no especificado';
-
                         return (
-                            <div
-                                key={shipment.id}
-                                className="bento-card flex items-center gap-4 hover:border-white/20 transition-colors group"
-                            >
-                                <div className={`${status.color}`}>{status.icon}</div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-white font-medium text-sm truncate">
-                                            {shipment.carrier_name} — {shipment.service_name}
-                                        </p>
-                                        <span
-                                            className={`text-[10px] px-2 py-0.5 rounded-full border ${status.color}
-                          bg-white/[0.03] border-current font-medium uppercase tracking-wider`}
-                                        >
-                                            {status.label}
-                                        </span>
+                            <div key={shipment.id} className="bento-card overflow-hidden border-l-4 border-l-blue-600 !p-0">
+                                <div className="flex flex-col md:flex-row items-center p-6 gap-6">
+                                    <div className="bg-blue-500/10 p-4 rounded-full">
+                                        <Package className="h-8 w-8 text-blue-500" />
                                     </div>
-                                    <p className="text-white/30 text-xs mt-0.5">
-                                        {shipment.tracking_number || 'Pendiente de etiqueta'} · {destinationLabel} ·{' '}
-                                        {new Date(shipment.created_at).toLocaleDateString('es-ES')}
-                                    </p>
-                                </div>
-                                <div className="flex flex-col items-end gap-3">
-                                    <p className="text-white font-semibold text-sm">
-                                        {Number(shipment.final_price).toFixed(2)}€
-                                    </p>
-                                    <DashboardActions shipmentId={shipment.id} status={shipment.status} />
+
+                                    <div className="flex-1 space-y-2">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <span className="font-bold text-lg text-white">
+                                                {shipment.origin_data?.city || 'Origen'} → {shipment.destination_data?.city || 'Destino'}
+                                            </span>
+
+                                            {/* Status Badge */}
+                                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${shipment.status === 'labels_generated'
+                                                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                                    : shipment.status === 'paid'
+                                                        ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                                                        : 'bg-white/10 text-white/70 border border-white/20'
+                                                }`}>
+                                                {shipment.status === 'labels_generated' ? 'Etiqueta Lista' :
+                                                    shipment.status === 'paid' ? 'Pago Confirmado' : shipment.status}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm text-white/50 flex items-center gap-2">
+                                            <Clock className="h-4 w-4" />
+                                            {new Date(shipment.created_at).toLocaleDateString('es-ES', {
+                                                day: 'numeric', month: 'long'
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                                        {shipment.label_url ? (
+                                            <a
+                                                href={shipment.label_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex flex-1 sm:flex-none items-center justify-center rounded-md text-sm font-medium transition-colors bg-white text-black hover:bg-white/90 h-10 px-4 py-2 gap-2"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                Descargar Etiqueta
+                                            </a>
+                                        ) : (
+                                            <button
+                                                disabled
+                                                className="inline-flex flex-1 sm:flex-none items-center justify-center rounded-md text-sm font-medium transition-colors border border-white/10 bg-white/5 text-white/50 cursor-not-allowed h-10 px-4 py-2 gap-2"
+                                            >
+                                                <Truck className="h-4 w-4" />
+                                                Procesando...
+                                            </button>
+                                        )}
+                                        <Link
+                                            href={`/tracking/${shipment.id}`}
+                                            className="inline-flex flex-1 sm:flex-none items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-white/10 text-blue-400 hover:text-blue-300 h-10 px-4 py-2"
+                                        >
+                                            Detalles
+                                        </Link>
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -134,4 +112,3 @@ export default async function DashboardPage() {
         </div>
     );
 }
-
