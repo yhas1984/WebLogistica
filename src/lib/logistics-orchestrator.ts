@@ -110,7 +110,11 @@ export async function getOptimizedRates(
     });
 
     // 5. Apply dynamic pricing (markup + Stripe fees)
-    const pricedRates = applyPricingToRates(allRates, subdomainMarkup);
+    // Here we respect the subdomains markup percentage from db
+    const pricedRates = applyPricingToRates(allRates, {
+        percentage: subdomainMarkup,
+        fixedFee: 0.50
+    });
 
     // 6. Sort by final price (cheapest first)
     pricedRates.sort((a, b) => a.finalPrice - b.finalPrice);

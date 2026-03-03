@@ -33,26 +33,41 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const metadata = session.metadata;
 
-        if (metadata) {
+        if (metadata && metadata.shipmentId) {
             try {
                 const supabase = await createServiceClient();
 
-                // Create shipment record
-                const { error } = await supabase.from('shipments').insert({
-                    status: 'paid',
-                    api_provider: metadata.provider,
-                    carrier_name: metadata.carrier_name,
-                    service_name: metadata.service_name,
-                    cost_price: parseFloat(metadata.cost_price || '0'),
-                    final_price: parseFloat(metadata.final_price || '0'),
-                    stripe_payment_id: session.payment_intent as string,
-                    origin_data: {},
-                    destination_data: {},
-                    dimensions: {},
-                });
+                // Idempotency Check: Fetch current status
+                const { data: currentShipment, error: fetchError } = await supabase
+                    .from('shipments')
+                    .select('status, stripe_payment_id')
+                    .eq('id', metadata.shipmentId)
+                    .single();
 
-                if (error) {
-                    console.error('[Stripe Webhook] DB insert error:', error);
+                if (fetchError) {
+                    console.error('[Stripe Webhook] Error fetching shipment:', fetchError);
+                    return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
+                }
+
+                if (currentShipment.status !== 'quoted') {
+                    // Shipment is already paid or further along. Ignore duplicate webhook.
+                    console.log(`[Stripe Webhook] Idempotent: Shipment ${metadata.shipmentId} already processed.`);
+                    return NextResponse.json({ received: true, idempotent: true });
+                }
+
+                // Update shipment to 'paid' status securely
+                const { error: updateError } = await supabase
+                    .from('shipments')
+                    .update({
+                        status: 'paid',
+                        stripe_payment_id: session.payment_intent as string || session.id
+                    })
+                    .eq('id', metadata.shipmentId)
+                    .eq('status', 'quoted'); // Enforce status strictly for parallel reqs
+
+                if (updateError) {
+                    console.error('[Stripe Webhook] DB update error:', updateError);
+                    throw updateError;
                 }
 
                 // TODO: Call carrier API to purchase actual label
@@ -60,6 +75,7 @@ export async function POST(request: NextRequest) {
                 // TODO: Update shipment with tracking_number and label_url
             } catch (error) {
                 console.error('[Stripe Webhook] Processing error:', error);
+                return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
             }
         }
     }

@@ -1,82 +1,89 @@
 // ============================================================
-// Genei v2 Carrier Adapter — PLACEHOLDER
-// No public API documentation available.
-// This adapter returns demo data and can be wired up once
-// API docs/credentials are provided.
+// Genei v2 Carrier Adapter
+// Handles Bearer Token Auth logic extending for 15 days
+// and provides real API requests to v2 endpoints.
 // ============================================================
 
 import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
-import { getDemoRates } from './types';
 
-const GENEI_API_URL = 'https://api.genei.es/v2';
+const GENEI_API_URL = 'https://apiv2.genei.es/api/v2';
 
-interface GeneiQuote {
-    id: number;
-    carrier: { name: string };
-    service: { name: string };
-    price: number;
-    currency: string;
-    delivery_time: string;
+let cachedToken: string | null = null;
+let tokenExpiresAt: number = 0;
+
+async function getGeneiToken() {
+    if (cachedToken && Date.now() < tokenExpiresAt) {
+        return cachedToken;
+    }
+
+    const email = process.env.GENEI_EMAIL;
+    const password = process.env.GENEI_PASSWORD;
+
+    if (!email || !password) {
+        throw new Error("[Genei] email or password missing from environment variables");
+    }
+
+    const response = await fetch(`${GENEI_API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) throw new Error("Fallo en la autenticación con Genei");
+    const data = await response.json();
+    cachedToken = data.token;
+
+    // Este token dura 15 días, establecemos el caché con expiración a los 14 días (preventiva)
+    tokenExpiresAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
+
+    return cachedToken;
 }
 
 export const geneiAdapter: CarrierAdapter = {
     provider: 'genei',
 
     async getRates(params: CarrierRateRequest): Promise<CarrierRate[]> {
-        const apiKey = process.env.GENEI_API_KEY;
-
-        if (!apiKey) {
-            console.warn('[Genei] No API key configured');
-            return [];
-        }
-
         try {
-            const response = await fetch(`${GENEI_API_URL}/rates`, {
-                method: 'POST',
+            const token = await getGeneiToken();
+
+            const response = await fetch(`${GENEI_API_URL}/agencies/prices`, {
+                method: "POST",
                 headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    origin: {
-                        zip: params.origin.postalCode,
-                        country: params.origin.country,
-                    },
-                    destination: {
-                        zip: params.destination.postalCode,
-                        country: params.destination.country,
-                    },
-                    parcels: [
-                        {
-                            weight: params.parcel.billableWeight,
-                            length: params.parcel.length,
-                            width: params.parcel.width,
-                            height: params.parcel.height,
-                        },
-                    ],
+                    cp_recogida: params.origin.postalCode,
+                    pais_recogida: params.origin.country,
+                    cp_entrega: params.destination.postalCode,
+                    pais_entrega: params.destination.country,
+                    bultos: [{
+                        peso: params.parcel.billableWeight,
+                        largo: params.parcel.length,
+                        ancho: params.parcel.width,
+                        alto: params.parcel.height
+                    }]
                 }),
                 signal: AbortSignal.timeout(15000),
             });
 
-            if (!response.ok) {
-                throw new Error(`Genei API error: ${response.status} ${response.statusText}`);
-            }
+            if (!response.ok) return [];
 
             const data = await response.json();
-            const quotes: GeneiQuote[] = data.quotes || [];
 
-            return quotes.map((quote) => ({
-                id: `genei-${quote.id}`,
+            // Mapeo de la respuesta de Genei a nuestro formato estándar
+            return (Array.isArray(data) ? data : []).map((agency: any) => ({
+                id: `genei-${agency.id}`,
                 provider: 'genei' as const,
-                carrierName: quote.carrier?.name || 'Genei Carrier',
-                serviceName: quote.service?.name || 'Genei Service',
-                estimatedDays: parseInt(quote.delivery_time) || 5,
-                costPrice: quote.price,
-                finalPrice: 0, // calculated by pricing engine
-                currency: quote.currency || 'EUR',
+                carrierName: agency.nombre || 'Genei Carrier',
+                serviceName: agency.nombre_servicio || 'Genei Service',
+                estimatedDays: parseInt(agency.plazo_entregas) || 5,
+                costPrice: parseFloat(agency.total),
+                finalPrice: 0, // se calcula en el orquestador
+                currency: 'EUR',
             }));
         } catch (error) {
-            console.error('[Genei] Rate fetch failed:', error);
+            console.error("[Genei] API Error:", error);
             return [];
         }
     },

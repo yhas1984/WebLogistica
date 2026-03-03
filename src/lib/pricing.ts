@@ -1,38 +1,47 @@
 // ============================================================
-// Dynamic Pricing Engine
-// Formula: (cost_price + stripe_fee) × 1.15 + 0.50€
+// Lógica de Precios
+// Implementa seguridad contra el peso volumétrico (DIM Weight)
+// y tarifa dinámica
 // ============================================================
 
-import type { CarrierRate } from '@/types';
+import type { CarrierRate, ParcelDimensions } from '@/types';
 
-// Stripe standard fees (EU)
-const STRIPE_PERCENTAGE_FEE = 0.029; // 2.9%
-const STRIPE_FIXED_FEE = 0.30;      // €0.30
-
-// Platform markup
-const MARGIN_MULTIPLIER = 1.15;      // 15% margin
-const FIXED_PLATFORM_FEE = 0.50;    // €0.50
+// Divisor estándar para peso volumétrico (cm/kg)
+const DIM_DIVISOR = 5000;
 
 /**
- * Calculate the Stripe processing fee for a given amount.
+ * Calculamos el peso facturable asegurando que el cliente no envíe
+ * menos "peso virtual" que el calculado por volumen de la caja.
  */
-export function calculateStripeFee(amount: number): number {
-    return amount * STRIPE_PERCENTAGE_FEE + STRIPE_FIXED_FEE;
+export function calculateBillableWeight(dimensions: ParcelDimensions): number {
+    const { weight, length, width, height } = dimensions;
+
+    // Cálculo del peso volumétrico: (L * A * H) / 5000
+    const volumetricWeight = (length * width * height) / DIM_DIVISOR;
+
+    // El peso facturable es siempre el mayor entre el real y el volumétrico
+    return Math.max(weight, volumetricWeight);
+}
+
+export interface MarkupConfig {
+    percentage: number; // Ej: 0.15 para 15%
+    fixedFee: number;   // Tarifa fija de gestión
 }
 
 /**
  * Apply the dynamic markup formula to a cost price.
  * Returns the final consumer-facing price.
  */
-export function applyMarkup(costPrice: number, subdomainMarkup: number = 0): number {
-    const stripeFee = calculateStripeFee(costPrice);
-    const baseWithFees = costPrice + stripeFee;
-    const withMargin = baseWithFees * MARGIN_MULTIPLIER;
-    const withPlatformFee = withMargin + FIXED_PLATFORM_FEE;
-    const withSubdomainMarkup = withPlatformFee + subdomainMarkup;
+export function applyMarkup(
+    costPrice: number,
+    config: MarkupConfig = { percentage: 0.15, fixedFee: 0.50 }
+): number {
+    // Calculamos el precio final añadiendo el margen porcentual y la tarifa fija
+    const priceWithPercentage = costPrice * (1 + config.percentage);
+    const finalPrice = priceWithPercentage + config.fixedFee;
 
-    // Round to 2 decimal places
-    return Math.round(withSubdomainMarkup * 100) / 100;
+    // Redondeamos a 2 decimales para evitar problemas con Stripe
+    return Math.round(finalPrice * 100) / 100;
 }
 
 /**
@@ -41,27 +50,19 @@ export function applyMarkup(costPrice: number, subdomainMarkup: number = 0): num
  */
 export function applyPricingToRates(
     rates: CarrierRate[],
-    subdomainMarkup: number = 0
+    config: MarkupConfig = { percentage: 0.15, fixedFee: 0.50 }
 ): CarrierRate[] {
     return rates.map((rate) => ({
         ...rate,
-        finalPrice: applyMarkup(rate.costPrice, subdomainMarkup),
+        finalPrice: applyMarkup(rate.costPrice, config),
     }));
 }
 
 /**
- * Calculate the margin breakdown for a given shipment.
+ * Calcula el beneficio neto real restando las comisiones de la pasarela (Stripe aprox)
  */
-export function getMarginBreakdown(costPrice: number, finalPrice: number) {
-    const stripeFee = calculateStripeFee(costPrice);
-    const grossMargin = finalPrice - costPrice - stripeFee;
-    const marginPercentage = (grossMargin / finalPrice) * 100;
-
-    return {
-        costPrice: Math.round(costPrice * 100) / 100,
-        stripeFee: Math.round(stripeFee * 100) / 100,
-        grossMargin: Math.round(grossMargin * 100) / 100,
-        finalPrice: Math.round(finalPrice * 100) / 100,
-        marginPercentage: Math.round(marginPercentage * 10) / 10,
-    };
+export function calculateNetProfit(finalPrice: number, costPrice: number): number {
+    const stripeFee = (finalPrice * 0.029) + 0.30; // Estimación estándar de Stripe
+    const profit = finalPrice - costPrice - stripeFee;
+    return Math.round(profit * 100) / 100;
 }
