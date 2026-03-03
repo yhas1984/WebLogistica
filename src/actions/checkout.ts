@@ -36,7 +36,9 @@ export async function createCheckoutSession(rateId: string, rateData: any) {
         if (dbError) throw dbError;
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
+            // 'card' enables Visa, Mastercard, Google Pay, and Apple Pay automatically natively.
+            // We explicitly add 'bizum' and 'paypal' for other payment options.
+            payment_method_types: ['card', 'bizum', 'paypal'] as any,
             line_items: [
                 {
                     price_data: {
@@ -96,7 +98,9 @@ export async function continueCheckoutSession(shipmentId: string) {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
+            // 'card' enables Visa, Mastercard, Google Pay, and Apple Pay automatically natively.
+            // We explicitly add 'bizum' and 'paypal' for other payment options.
+            payment_method_types: ['card', 'bizum', 'paypal'] as any,
             line_items: [
                 {
                     price_data: {
