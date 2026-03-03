@@ -7,6 +7,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { getGeneiLabel } from '@/lib/carriers/genei';
+import { sendLabelEmail } from '@/lib/resend';
 
 export async function purchaseLabel(
     shipmentId: string
@@ -87,6 +88,24 @@ export async function purchaseLabel(
 
         if (updateError) {
             throw updateError;
+        }
+
+        // 4. Send Confirmation Email via Resend
+        try {
+            if (shipment.user_id) {
+                const { data: userData, error: userError } = await supabase.auth.admin.getUserById(shipment.user_id);
+                if (!userError && userData?.user?.email) {
+                    await sendLabelEmail({
+                        to: userData.user.email,
+                        trackingNumber: tracking,
+                        labelUrl: labelUrl,
+                        shipmentId: shipmentId
+                    });
+                }
+            }
+        } catch (emailError) {
+            console.error('[purchaseLabel] Error sending confirmation email:', emailError);
+            // Non-critical, do not fail label generation
         }
 
         return { success: true, labelUrl };
