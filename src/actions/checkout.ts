@@ -4,7 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
-export async function createCheckoutSession(rateId: string, rateData: any) {
+export async function createCheckoutSession(rateId: string, rateData: any, origin: any, destination: any) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -15,23 +15,50 @@ export async function createCheckoutSession(rateId: string, rateData: any) {
     let redirectUrl: string | null = null;
 
     try {
-        // Create a record in shipments table as 'quoted' or 'pending_payment'
-        const { data: shipment, error: dbError } = await supabase
+        // Create a record in shipments table as 'pending_payment'
+        // Try with extra columns first, fallback without them if columns don't exist yet
+        const baseInsert = {
+            user_id: user.id,
+            carrier_name: rateData.carrierName,
+            service_name: rateData.serviceName,
+            cost_price: rateData.costPrice,
+            final_price: rateData.finalPrice,
+            status: 'pending_payment',
+            api_provider: rateData.provider,
+            origin_data: origin,
+            destination_data: destination,
+            dimensions: rateData.dimensions || {},
+        };
+
+        let shipment: any;
+        let dbError: any;
+
+        // Try with extra columns
+        const result1 = await supabase
             .from('shipments')
             .insert({
-                user_id: user.id,
-                carrier_name: rateData.carrierName,
-                service_name: rateData.serviceName,
-                cost_price: rateData.costPrice,
-                final_price: rateData.finalPrice,
-                status: 'quoted',
-                api_provider: rateData.provider,
-                origin_data: rateData.origin || {},
-                destination_data: rateData.destination || {},
-                dimensions: rateData.dimensions || {},
+                ...baseInsert,
+                origin_postal_code: origin.postalCode,
+                origin_country: origin.countryCode,
+                destination_postal_code: destination.postalCode,
+                destination_country: destination.countryCode,
             })
             .select()
             .single();
+
+        if (result1.error?.code === 'PGRST204') {
+            // Columns don't exist yet, insert without them
+            const result2 = await supabase
+                .from('shipments')
+                .insert(baseInsert)
+                .select()
+                .single();
+            shipment = result2.data;
+            dbError = result2.error;
+        } else {
+            shipment = result1.data;
+            dbError = result1.error;
+        }
 
         if (dbError) throw dbError;
 
@@ -94,7 +121,7 @@ export async function continueCheckoutSession(shipmentId: string) {
 
         if (dbError || !shipment) throw new Error('Envío no encontrado');
 
-        if (shipment.status !== 'quoted') {
+        if (shipment.status !== 'pending_payment' && shipment.status !== 'quoted') {
             throw new Error('Este envío ya ha sido procesado');
         }
 
@@ -150,7 +177,23 @@ export async function deleteShipment(shipmentId: string) {
     }
 
     try {
-        // Use service role key to bypass missing RLS DELETE policy temporarily
+        // First try with user's authenticated client (requires RLS DELETE policy)
+        const { error: rlsError, data: rlsData } = await supabase
+            .from('shipments')
+            .delete()
+            .eq('id', shipmentId)
+            .eq('user_id', user.id)
+            .in('status', ['pending_payment', 'quoted'])
+            .select();
+
+        if (!rlsError && rlsData && rlsData.length > 0) {
+            console.log('[Delete] Success via RLS:', rlsData.length, 'rows');
+            revalidatePath('/dashboard');
+            return { success: true };
+        }
+
+        // Fallback: use service role key for projects without DELETE policy
+        console.log('[Delete] RLS delete returned 0 rows or error, trying admin...', rlsError);
         const supabaseAdmin = createSupabaseAdminClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -160,15 +203,18 @@ export async function deleteShipment(shipmentId: string) {
             .from('shipments')
             .delete()
             .eq('id', shipmentId)
-            .eq('status', 'quoted') // Only allow deleting un-paid shipments safely.
+            .eq('user_id', user.id) // Security: verify ownership
+            .in('status', ['pending_payment', 'quoted'])
             .select();
 
         if (error) throw error;
 
         if (!deletedData || deletedData.length === 0) {
-            console.log("No rows were deleted. Shipment might not exist or wrong status.");
+            console.log("[Delete] No rows deleted. Status:", shipmentId);
             return { error: 'No se pudo eliminar el envío. Es probable que ya haya sido pagado o procesado.' };
         }
+
+        console.log('[Delete] Success via admin:', deletedData.length, 'rows');
     } catch (error: any) {
         console.error('[Database] Error deleting shipment:', error);
         return { error: 'No se pudo eliminar el envío.' };

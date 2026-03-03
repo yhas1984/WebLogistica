@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
                 }
 
-                if (currentShipment.status !== 'quoted') {
+                if (currentShipment.status !== 'pending_payment') {
                     // Shipment is already paid or further along. Ignore duplicate webhook.
                     console.log(`[Stripe Webhook] Idempotent: Shipment ${metadata.shipmentId} already processed.`);
                     return NextResponse.json({ received: true, idempotent: true });
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
                         stripe_payment_id: session.payment_intent as string || session.id
                     })
                     .eq('id', metadata.shipmentId)
-                    .eq('status', 'quoted'); // Enforce status strictly for parallel reqs
+                    .eq('status', 'pending_payment'); // Enforce status strictly for parallel reqs
 
                 if (updateError) {
                     console.error('[Stripe Webhook] DB update error:', updateError);

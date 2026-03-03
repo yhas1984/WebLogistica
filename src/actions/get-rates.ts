@@ -12,8 +12,10 @@ import type { RateResultsData } from '@/types';
 
 const quoteSchema = z.object({
     originPostalCode: z.string().min(3, 'Código postal de origen requerido'),
+    originCity: z.string().min(2, 'Ciudad de origen requerida'),
     originCountry: z.string().length(2, 'País de origen requerido (ISO 2)'),
     destinationPostalCode: z.string().min(3, 'Código postal de destino requerido'),
+    destinationCity: z.string().min(2, 'Ciudad de destino requerida'),
     destinationCountry: z.string().length(2, 'País de destino requerido (ISO 2)'),
     weight: z.number().gt(0, 'El peso debe ser mayor que 0'),
     length: z.number().gt(0, 'El largo debe ser mayor que 0'),
@@ -34,8 +36,10 @@ export async function getRatesAction(
     try {
         const rawData = {
             originPostalCode: formData.get('originPostalCode') as string,
+            originCity: formData.get('originCity') as string,
             originCountry: (formData.get('originCountry') as string) || 'ES',
             destinationPostalCode: formData.get('destinationPostalCode') as string,
+            destinationCity: formData.get('destinationCity') as string,
             destinationCountry: (formData.get('destinationCountry') as string) || 'ES',
             weight: parseFloat(formData.get('weight') as string),
             length: parseFloat(formData.get('length') as string),

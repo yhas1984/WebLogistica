@@ -33,10 +33,12 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
     // Address state
     const [originAddress, setOriginAddress] = useState("");
     const [originPostalCode, setOriginPostalCode] = useState("");
+    const [originCity, setOriginCity] = useState("");
     const [originCountry, setOriginCountry] = useState("ES");
 
     const [destAddress, setDestAddress] = useState("");
     const [destPostalCode, setDestPostalCode] = useState("");
+    const [destCity, setDestCity] = useState("");
     const [destCountry, setDestCountry] = useState("ES");
 
     // Refs for GMP Components
@@ -52,20 +54,24 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
 
         const extractPlaceData = (place: any) => {
             let postalCode = '';
+            let city = '';
             let country = 'ES'; // Fallback
             for (const component of place.addressComponents || []) {
                 const types = component.types;
                 if (types.includes('postal_code')) {
                     postalCode = component.longText;
                 }
+                if (types.includes('locality') || types.includes('postal_town')) {
+                    city = component.longText;
+                }
                 if (types.includes('country')) {
                     country = component.shortText;
                 }
             }
-            return { address: place.formattedAddress || place.displayName || '', postalCode, country };
+            return { address: place.formattedAddress || place.displayName || '', postalCode, city, country };
         };
 
-        const setupPicker = (pickerRef: any, setAddress: any, setPostalCode: any, setCountry: any) => {
+        const setupPicker = (pickerRef: any, setAddress: any, setPostalCode: any, setCountry: any, setCity: any) => {
             const handlePlaceChange = () => {
                 const place = pickerRef.current?.value;
                 if (!place) return;
@@ -73,6 +79,7 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                 const data = extractPlaceData(place);
                 setAddress(data.address);
                 if (data.postalCode) setPostalCode(data.postalCode);
+                if (data.city) setCity(data.city);
                 if (data.country) setCountry(data.country);
             };
 
@@ -89,8 +96,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
 
         // We delay the setup slightly to allow the web components to upgrade/mount
         const timeoutId = setTimeout(() => {
-            setupPicker(originPickerRef, setOriginAddress, setOriginPostalCode, setOriginCountry);
-            setupPicker(destPickerRef, setDestAddress, setDestPostalCode, setDestCountry);
+            setupPicker(originPickerRef, setOriginAddress, setOriginPostalCode, setOriginCountry, setOriginCity);
+            setupPicker(destPickerRef, setDestAddress, setDestPostalCode, setDestCountry, setDestCity);
         }, 1000);
 
         return () => clearTimeout(timeoutId);
@@ -144,6 +151,7 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             </div>
                         )}
                         <input type="hidden" name="originPostalCode" value={originPostalCode} />
+                        <input type="hidden" name="originCity" value={originCity} />
                         <input type="hidden" name="originCountry" value={originCountry} />
                     </div>
                     {(formState?.fieldErrors?.originPostalCode || formState?.fieldErrors?.originCountry) && (
@@ -173,6 +181,7 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             </div>
                         )}
                         <input type="hidden" name="destinationPostalCode" value={destPostalCode} />
+                        <input type="hidden" name="destinationCity" value={destCity} />
                         <input type="hidden" name="destinationCountry" value={destCountry} />
                     </div>
                     {(formState?.fieldErrors?.destinationPostalCode || formState?.fieldErrors?.destinationCountry) && (

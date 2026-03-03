@@ -52,3 +52,40 @@ export async function logout() {
     revalidatePath('/');
     redirect('/');
 }
+
+export async function forgotPassword(formData: FormData) {
+    const supabase = await createClient();
+    const email = formData.get('email') as string;
+
+    if (!email) {
+        return { error: 'El correo electrónico es obligatorio.' };
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+    });
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    return { success: true };
+}
+
+export async function resetPassword(formData: FormData) {
+    const supabase = await createClient();
+    const password = formData.get('password') as string;
+
+    if (!password || password.length < 6) {
+        return { error: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath('/dashboard');
+    redirect('/dashboard');
+}

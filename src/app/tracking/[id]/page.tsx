@@ -42,17 +42,20 @@ export default async function TrackingDetailPage({ params }: { params: Promise<{
 
     const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
         quoted: { label: 'Cotizado', color: 'text-white/60', icon: <Clock className="w-5 h-5" /> },
+        pending_payment: { label: 'Pendiente de Pago', color: 'text-amber-400', icon: <Clock className="w-5 h-5" /> },
         paid: { label: 'Pagado', color: 'text-blue-400', icon: <CheckCircle2 className="w-5 h-5" /> },
         labels_generated: { label: 'Etiqueta Lista', color: 'text-emerald-400', icon: <CheckCircle2 className="w-5 h-5" /> },
         label_created: { label: 'Etiqueta Lista', color: 'text-emerald-400', icon: <CheckCircle2 className="w-5 h-5" /> },
         in_transit: { label: 'En Tránsito', color: 'text-amber-400', icon: <Truck className="w-5 h-5" /> },
         delivered: { label: 'Entregado', color: 'text-emerald-400', icon: <CheckCircle2 className="w-5 h-5" /> },
         manual_intervention_required: { label: 'Intervención Manual', color: 'text-red-400', icon: <AlertTriangle className="w-5 h-5" /> },
+        cancelled: { label: 'Cancelado', color: 'text-white/40', icon: <Clock className="w-5 h-5" /> },
     };
 
     const status = statusConfig[shipment.status] || statusConfig.quoted;
     const origin = (shipment.origin_data as any) || {};
     const dest = (shipment.destination_data as any) || {};
+    const dims = (shipment.dimensions as any) || {};
 
     return (
         <div className="container mx-auto py-10 px-4 max-w-3xl">
@@ -147,7 +150,7 @@ export default async function TrackingDetailPage({ params }: { params: Promise<{
                         Dimensiones
                     </div>
                     <p className="text-white font-medium">
-                        {shipment.length || '—'} × {shipment.width || '—'} × {shipment.height || '—'} cm
+                        {dims.length || '—'} × {dims.width || '—'} × {dims.height || '—'} cm
                     </p>
                 </div>
 
@@ -158,7 +161,7 @@ export default async function TrackingDetailPage({ params }: { params: Promise<{
                         Peso
                     </div>
                     <p className="text-white font-medium">
-                        {shipment.weight ? `${shipment.weight} kg` : '—'}
+                        {dims.weight ? `${dims.weight} kg` : '—'}
                     </p>
                 </div>
             </div>

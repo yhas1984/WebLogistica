@@ -3,11 +3,12 @@
 import { login } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { LogIn, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { LogIn, Loader2, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -56,17 +57,40 @@ export default function LoginPage() {
                             />
                         </div>
                         <div>
-                            <label className="form-label" htmlFor="password">
-                                Contraseña
-                            </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                required
-                                placeholder="••••••••"
-                                className="form-input"
-                            />
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="form-label !mb-0" htmlFor="password">
+                                    Contraseña
+                                </label>
+                                <Link
+                                    href="/forgot-password"
+                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                    ¿Olvidaste tu contraseña?
+                                </Link>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    placeholder="••••••••"
+                                    className="form-input pr-11"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors p-1"
+                                    tabIndex={-1}
+                                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="w-4 h-4" />
+                                    ) : (
+                                        <Eye className="w-4 h-4" />
+                                    )}
+                                </button>
+                            </div>
                         </div>
 
                         {error && (

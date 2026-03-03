@@ -4,15 +4,13 @@
 
 // ── Address ─────────────────────────────────────────────────
 export interface Address {
-  name: string;
-  street1: string;
-  street2?: string;
+  name: string;        // OBLIGATORIO: Nombre completo de quien envía/recibe
+  address: string;     // OBLIGATORIO: Calle, número, piso, puerta
   city: string;
-  state: string;
-  zip: string;
-  country: string; // ISO 3166-1 alpha-2
-  phone?: string;
-  email?: string;
+  postalCode: string;
+  countryCode: string;
+  phone: string;       // OBLIGATORIO: Teléfono para el mensajero
+  email?: string;      // Opcional para notificaciones
 }
 
 // ── Parcel / Dimensions ─────────────────────────────────────
@@ -31,8 +29,10 @@ export interface ParcelWithVolumetric extends ParcelDimensions {
 // ── Quote Request ───────────────────────────────────────────
 export interface QuoteRequest {
   originPostalCode: string;
+  originCity: string;
   originCountry: string;
   destinationPostalCode: string;
+  destinationCity: string;
   destinationCountry: string;
   weight: number;
   length: number;
@@ -48,6 +48,7 @@ export interface CarrierRate {
   provider: CarrierProvider;
   carrierName: string;       // "DHL Express", "SEUR", etc.
   serviceName: string;       // "Express Domestic", etc.
+  serviceType: 'door_to_door' | 'drop_off'; // Nuevo: Tipo de servicio
   estimatedDays: number;
   costPrice: number;         // EUR (what we pay the carrier)
   finalPrice: number;        // EUR (what the user pays)
@@ -59,8 +60,8 @@ export interface CarrierRate {
 export interface CarrierAdapter {
   provider: CarrierProvider;
   getRates(params: {
-    origin: { postalCode: string; country: string };
-    destination: { postalCode: string; country: string };
+    origin: { postalCode: string; city: string; country: string };
+    destination: { postalCode: string; city: string; country: string };
     parcel: ParcelWithVolumetric;
   }): Promise<CarrierRate[]>;
 }
@@ -68,10 +69,12 @@ export interface CarrierAdapter {
 // ── Shipment (DB row) ───────────────────────────────────────
 export type ShipmentStatus =
   | 'quoted'
+  | 'pending_payment'
   | 'paid'
-  | 'label_created'
+  | 'labels_generated'
   | 'in_transit'
   | 'delivered'
+  | 'manual_intervention_required'
   | 'cancelled';
 
 export interface Shipment {
@@ -127,8 +130,8 @@ export interface RateResultsData {
   parcel: ParcelWithVolumetric;
   errors: string[]; // carrier errors (non-fatal)
   searchParams: {
-    origin: { postalCode: string; country: string };
-    destination: { postalCode: string; country: string };
+    origin: { postalCode: string; city: string; country: string };
+    destination: { postalCode: string; city: string; country: string };
     parcel: ParcelWithVolumetric;
   };
 }

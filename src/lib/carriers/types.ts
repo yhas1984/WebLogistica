@@ -7,8 +7,8 @@ import type { CarrierAdapter, CarrierRate, CarrierProvider, ParcelWithVolumetric
 export type { CarrierAdapter, CarrierRate, CarrierProvider, ParcelWithVolumetric };
 
 export interface CarrierRateRequest {
-    origin: { postalCode: string; country: string };
-    destination: { postalCode: string; country: string };
+    origin: { postalCode: string; city: string; country: string };
+    destination: { postalCode: string; city: string; country: string };
     parcel: ParcelWithVolumetric;
 }
 
@@ -23,6 +23,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'shippo',
                 carrierName: 'DHL Express',
                 serviceName: 'Express Domestic',
+                serviceType: 'door_to_door',
                 estimatedDays: 1,
                 costPrice: basePrice * 1.8,
                 finalPrice: 0, // will be calculated by pricing engine
@@ -33,6 +34,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'shippo',
                 carrierName: 'SEUR',
                 serviceName: 'Standard',
+                serviceType: 'door_to_door',
                 estimatedDays: 3,
                 costPrice: basePrice * 1.0,
                 finalPrice: 0,
@@ -43,6 +45,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'shippo',
                 carrierName: 'Correos',
                 serviceName: 'Paq Standard',
+                serviceType: 'drop_off',
                 estimatedDays: 5,
                 costPrice: basePrice * 0.7,
                 finalPrice: 0,
@@ -55,6 +58,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'packlink',
                 carrierName: 'UPS',
                 serviceName: 'Express Saver',
+                serviceType: 'door_to_door',
                 estimatedDays: 2,
                 costPrice: basePrice * 1.5,
                 finalPrice: 0,
@@ -65,6 +69,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'packlink',
                 carrierName: 'GLS',
                 serviceName: 'Business Parcel',
+                serviceType: 'drop_off',
                 estimatedDays: 4,
                 costPrice: basePrice * 0.9,
                 finalPrice: 0,
@@ -77,6 +82,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'genei',
                 carrierName: 'FedEx',
                 serviceName: 'International Priority',
+                serviceType: 'door_to_door',
                 estimatedDays: 2,
                 costPrice: basePrice * 1.6,
                 finalPrice: 0,
@@ -87,6 +93,7 @@ export function getDemoRates(provider: CarrierProvider, parcel: ParcelWithVolume
                 provider: 'genei',
                 carrierName: 'MRW',
                 serviceName: 'Nacional',
+                serviceType: 'door_to_door',
                 estimatedDays: 3,
                 costPrice: basePrice * 0.85,
                 finalPrice: 0,

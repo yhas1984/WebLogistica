@@ -80,10 +80,12 @@ export async function getOptimizedRates(
     const carrierRequest: CarrierRateRequest = {
         origin: {
             postalCode: request.originPostalCode,
+            city: request.originCity,
             country: request.originCountry,
         },
         destination: {
             postalCode: request.destinationPostalCode,
+            city: request.destinationCity,
             country: request.destinationCountry,
         },
         parcel,

@@ -1,22 +1,32 @@
 'use client';
 
-import { signup } from '@/actions/auth';
+import { resetPassword } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { UserPlus, Loader2, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Loader2, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
-export default function RegisterPage() {
+export default function ResetPasswordPage() {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     async function handleSubmit(formData: FormData) {
         setError(null);
+        const password = formData.get('password') as string;
+        const confirm = formData.get('confirm') as string;
+
+        if (password !== confirm) {
+            setError('Las contraseñas no coinciden.');
+            return;
+        }
+
         startTransition(async () => {
-            const result = await signup(formData);
+            const result = await resetPassword(formData);
             if (result?.error) {
                 setError(result.error);
             }
+            // On success, the server action redirects to /dashboard
         });
     }
 
@@ -24,54 +34,28 @@ export default function RegisterPage() {
         <div className="min-h-screen flex items-center justify-center px-6">
             <div className="w-full max-w-md animate-fade-in">
                 <Link
-                    href="/"
+                    href="/login"
                     className="inline-flex items-center gap-2 text-white/40 hover:text-white mb-8 transition-colors group"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Volver al inicio
+                    Ir al login
                 </Link>
 
                 <div className="bento-card p-8">
                     <div className="flex flex-col items-center mb-8">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20 mb-4">
-                            <UserPlus className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-4">
+                            <KeyRound className="w-6 h-6 text-white" />
                         </div>
-                        <h1 className="text-2xl font-bold text-white">Crea tu Cuenta</h1>
+                        <h1 className="text-2xl font-bold text-white">Nueva Contraseña</h1>
                         <p className="text-white/40 text-sm mt-2 text-center">
-                            Únete a WebLogistica y ahorra hasta un 40% en tus envíos
+                            Introduce tu nueva contraseña. Debe tener al menos 6 caracteres.
                         </p>
                     </div>
 
                     <form action={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="form-label" htmlFor="name">
-                                Nombre completo
-                            </label>
-                            <input
-                                id="name"
-                                name="name"
-                                type="text"
-                                required
-                                placeholder="Juan Pérez"
-                                className="form-input"
-                            />
-                        </div>
-                        <div>
-                            <label className="form-label" htmlFor="email">
-                                Correo electrónico
-                            </label>
-                            <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                required
-                                placeholder="tu@email.com"
-                                className="form-input"
-                            />
-                        </div>
-                        <div>
                             <label className="form-label" htmlFor="password">
-                                Contraseña
+                                Nueva contraseña
                             </label>
                             <div className="relative">
                                 <input
@@ -82,22 +66,43 @@ export default function RegisterPage() {
                                     minLength={6}
                                     placeholder="••••••••"
                                     className="form-input pr-11"
+                                    autoFocus
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors p-1"
                                     tabIndex={-1}
-                                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                    aria-label={showPassword ? 'Ocultar' : 'Mostrar'}
                                 >
-                                    {showPassword ? (
-                                        <EyeOff className="w-4 h-4" />
-                                    ) : (
-                                        <Eye className="w-4 h-4" />
-                                    )}
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
-                            <p className="text-xs text-white/30 mt-1.5">Mínimo 6 caracteres</p>
+                        </div>
+                        <div>
+                            <label className="form-label" htmlFor="confirm">
+                                Confirmar contraseña
+                            </label>
+                            <div className="relative">
+                                <input
+                                    id="confirm"
+                                    name="confirm"
+                                    type={showConfirm ? 'text' : 'password'}
+                                    required
+                                    minLength={6}
+                                    placeholder="••••••••"
+                                    className="form-input pr-11"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm(!showConfirm)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors p-1"
+                                    tabIndex={-1}
+                                    aria-label={showConfirm ? 'Ocultar' : 'Mostrar'}
+                                >
+                                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
                         </div>
 
                         {error && (
@@ -110,30 +115,18 @@ export default function RegisterPage() {
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {isPending ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Creando cuenta...
+                                    Guardando...
                                 </>
                             ) : (
-                                'Registrarse'
+                                'Establecer nueva contraseña'
                             )}
                         </button>
                     </form>
-
-                    <div className="mt-8 pt-6 border-t border-white/5 text-center">
-                        <p className="text-sm text-white/40">
-                            ¿Ya tienes cuenta?{' '}
-                            <Link
-                                href="/login"
-                                className="text-purple-400 hover:underline font-medium"
-                            >
-                                Inicia sesión
-                            </Link>
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>

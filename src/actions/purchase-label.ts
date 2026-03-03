@@ -31,7 +31,7 @@ export async function purchaseLabel(
 
         // 2. Comprar según provider con Alerta de Seguridad (Try-Catch robusto)
         try {
-            if (shipment.provider === 'genei') {
+            if (shipment.api_provider === 'genei') {
                 const result = await getGeneiLabel(shipment);
                 if (result.tracking) tracking = result.tracking;
 
