@@ -88,3 +88,48 @@ export const geneiAdapter: CarrierAdapter = {
         }
     },
 };
+
+export async function getGeneiLabel(shipmentData: any) {
+    const token = await getGeneiToken();
+
+    // Validamos los datos básicos para evitar errors 400
+    if (!shipmentData.origin_postal_code || !shipmentData.destination_postal_code) {
+        throw new Error("Missing required shipment addresses");
+    }
+
+    const response = await fetch(`${GENEI_API_URL}/shipments`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            remite_nombre: shipmentData.profiles?.full_name || "Remitente",
+            remite_direccion: "Central", // Debería de ser origin_address si existiese
+            cp_recogida: shipmentData.origin_postal_code,
+            pais_recogida: shipmentData.origin_country,
+
+            destina_nombre: "Destinatario",
+            destina_direccion: "Destino", // Debería de ser dest_address si existiese
+            cp_entrega: shipmentData.destination_postal_code,
+            pais_entrega: shipmentData.destination_country,
+
+            bultos: [{
+                peso: shipmentData.weight,
+                largo: shipmentData.length,
+                ancho: shipmentData.width,
+                alto: shipmentData.height
+            }],
+            servicio: shipmentData.rate_id.replace("genei-", ""), // Sacamos la ID real
+            referencia: shipmentData.id
+        }),
+    });
+
+    if (!response.ok) {
+        console.error("[Genei] Falló la creación del envío", await response.text());
+        throw new Error("Error comprando en Genei");
+    }
+
+    const data = await response.json();
+    return { tracking: data.tracking_number || `GNI-${Date.now()}`, pdf: data.label_url || null };
+}

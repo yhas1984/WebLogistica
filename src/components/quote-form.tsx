@@ -5,7 +5,7 @@
 // Bento Grid design with glassmorphism, Zod validation
 // ============================================================
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import {
     Package,
     MapPin,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getRatesAction, type QuoteFormState } from '@/actions/get-rates';
 import type { RateResultsData } from '@/types';
+import { calculateBillableWeight } from '@/lib/pricing';
 
 interface QuoteFormProps {
     onResults: (data: RateResultsData) => void;
@@ -26,6 +27,91 @@ interface QuoteFormProps {
 export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormProps) {
     const [isPending, startTransition] = useTransition();
     const [formState, setFormState] = useState<QuoteFormState | null>(null);
+
+    const [dimensions, setDimensions] = useState({ length: 30, width: 20, height: 15, weight: 2.5 });
+
+    // Address state
+    const [originAddress, setOriginAddress] = useState("");
+    const [originPostalCode, setOriginPostalCode] = useState("");
+    const [originCountry, setOriginCountry] = useState("ES");
+
+    const [destAddress, setDestAddress] = useState("");
+    const [destPostalCode, setDestPostalCode] = useState("");
+    const [destCountry, setDestCountry] = useState("ES");
+
+    // Refs for GMP Components
+    const originMapRef = useRef<any>(null);
+    const originPickerRef = useRef<any>(null);
+    const originMarkerRef = useRef<any>(null);
+
+    const destMapRef = useRef<any>(null);
+    const destPickerRef = useRef<any>(null);
+    const destMarkerRef = useRef<any>(null);
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
+
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+
+        const extractPlaceData = (place: any) => {
+            let postalCode = '';
+            let country = 'ES'; // Fallback
+            for (const component of place.addressComponents || []) {
+                const types = component.types;
+                if (types.includes('postal_code')) {
+                    postalCode = component.longText;
+                }
+                if (types.includes('country')) {
+                    country = component.shortText;
+                }
+            }
+            return { address: place.formattedAddress || place.displayName || '', postalCode, country };
+        };
+
+        const setupMapAndPicker = (mapRef: any, pickerRef: any, markerRef: any, setAddress: any, setPostalCode: any, setCountry: any) => {
+            const handlePlaceChange = () => {
+                const place = pickerRef.current?.value;
+                if (!place) return;
+
+                if (place.location && mapRef.current && markerRef.current) {
+                    if (place.viewport) {
+                        mapRef.current.innerMap.fitBounds(place.viewport);
+                    } else {
+                        mapRef.current.center = place.location;
+                        mapRef.current.zoom = 17;
+                    }
+                    markerRef.current.position = place.location;
+                }
+
+                const data = extractPlaceData(place);
+                setAddress(data.address);
+                if (data.postalCode) setPostalCode(data.postalCode);
+                if (data.country) setCountry(data.country);
+            };
+
+            const picker = pickerRef.current;
+            if (picker) {
+                picker.addEventListener('gmpx-placechange', handlePlaceChange);
+            }
+            return () => {
+                if (picker) {
+                    picker.removeEventListener('gmpx-placechange', handlePlaceChange);
+                }
+            };
+        };
+
+        // We delay the setup slightly to allow the web components to upgrade/mount
+        const timeoutId = setTimeout(() => {
+            setupMapAndPicker(originMapRef, originPickerRef, originMarkerRef, setOriginAddress, setOriginPostalCode, setOriginCountry);
+            setupMapAndPicker(destMapRef, destPickerRef, destMarkerRef, setDestAddress, setDestPostalCode, setDestCountry);
+        }, 1000);
+
+        return () => clearTimeout(timeoutId);
+    }, [apiKey]);
+
+    const billableWeight = calculateBillableWeight(dimensions);
 
     async function handleSubmit(formData: FormData) {
         formData.set('subdomainMarkup', String(subdomainMarkup));
@@ -40,11 +126,20 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
     }
 
     return (
-        <form action={handleSubmit} className="w-full max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* ── Origin Card ────────────────────────────────── */}
-                <div className="bento-card col-span-1">
-                    <div className="flex items-center gap-2 mb-4">
+        <form action={handleSubmit} className="w-full max-w-5xl mx-auto">
+            {isMounted && (
+                <div
+                    dangerouslySetInnerHTML={{
+                        __html: `<gmpx-api-loader key="${apiKey}" solution-channel="GMP_GE_mapsandplacesautocomplete_v2"></gmpx-api-loader>`
+                    }}
+                />
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                {/* ── Origin Card with Map ────────────────────────────────── */}
+                <div className="bento-card col-span-1 flex flex-col h-[400px]">
+                    <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-blue">
                             <MapPin className="w-4 h-4" />
                         </div>
@@ -52,48 +147,31 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             Origen
                         </h3>
                     </div>
-                    <div className="space-y-3">
-                        <div>
-                            <label className="form-label" htmlFor="originPostalCode">
-                                Código Postal
-                            </label>
-                            <input
-                                id="originPostalCode"
-                                name="originPostalCode"
-                                type="text"
-                                required
-                                placeholder="28001"
-                                className="form-input"
-                            />
-                            {formState?.fieldErrors?.originPostalCode && (
-                                <p className="form-error">{formState.fieldErrors.originPostalCode[0]}</p>
-                            )}
-                        </div>
-                        <div>
-                            <label className="form-label" htmlFor="originCountry">
-                                País
-                            </label>
-                            <select
-                                id="originCountry"
-                                name="originCountry"
-                                defaultValue="ES"
-                                className="form-input"
-                            >
-                                <option value="ES">🇪🇸 España</option>
-                                <option value="FR">🇫🇷 Francia</option>
-                                <option value="DE">🇩🇪 Alemania</option>
-                                <option value="IT">🇮🇹 Italia</option>
-                                <option value="PT">🇵🇹 Portugal</option>
-                                <option value="GB">🇬🇧 Reino Unido</option>
-                                <option value="US">🇺🇸 Estados Unidos</option>
-                            </select>
-                        </div>
+
+                    <div className="relative flex-grow rounded-xl overflow-hidden border border-white/[0.08]">
+                        {isMounted ? (
+                            <gmp-map ref={originMapRef} center="40.4168,-3.7038" zoom="5" map-id="DEMO_MAP_ID" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+                                <div slot="control-block-start-inline-start" className="p-3 w-[260px] md:w-[300px]">
+                                    <gmpx-place-picker ref={originPickerRef} placeholder="¿De dónde sale?"></gmpx-place-picker>
+                                </div>
+                                <gmp-advanced-marker ref={originMarkerRef}></gmp-advanced-marker>
+                            </gmp-map>
+                        ) : (
+                            <div className="w-full h-full bg-white/5 animate-pulse flex items-center justify-center absolute top-0 left-0">
+                                <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+                            </div>
+                        )}
+                        <input type="hidden" name="originPostalCode" value={originPostalCode} />
+                        <input type="hidden" name="originCountry" value={originCountry} />
                     </div>
+                    {(formState?.fieldErrors?.originPostalCode || formState?.fieldErrors?.originCountry) && (
+                        <p className="form-error mt-2 shrink-0">Por favor busca y selecciona una dirección válida.</p>
+                    )}
                 </div>
 
-                {/* ── Destination Card ───────────────────────────── */}
-                <div className="bento-card col-span-1">
-                    <div className="flex items-center gap-2 mb-4">
+                {/* ── Destination Card with Map ───────────────────────────── */}
+                <div className="bento-card col-span-1 flex flex-col h-[400px]">
+                    <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-purple">
                             <MapPin className="w-4 h-4" />
                         </div>
@@ -101,54 +179,31 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             Destino
                         </h3>
                     </div>
-                    <div className="space-y-3">
-                        <div>
-                            <label className="form-label" htmlFor="destinationPostalCode">
-                                Código Postal
-                            </label>
-                            <input
-                                id="destinationPostalCode"
-                                name="destinationPostalCode"
-                                type="text"
-                                required
-                                placeholder="08001"
-                                className="form-input"
-                            />
-                            {formState?.fieldErrors?.destinationPostalCode && (
-                                <p className="form-error">
-                                    {formState.fieldErrors.destinationPostalCode[0]}
-                                </p>
-                            )}
-                        </div>
-                        <div>
-                            <label className="form-label" htmlFor="destinationCountry">
-                                País
-                            </label>
-                            <select
-                                id="destinationCountry"
-                                name="destinationCountry"
-                                defaultValue="ES"
-                                className="form-input"
-                            >
-                                <option value="ES">🇪🇸 España</option>
-                                <option value="FR">🇫🇷 Francia</option>
-                                <option value="DE">🇩🇪 Alemania</option>
-                                <option value="IT">🇮🇹 Italia</option>
-                                <option value="PT">🇵🇹 Portugal</option>
-                                <option value="GB">🇬🇧 Reino Unido</option>
-                                <option value="US">🇺🇸 Estados Unidos</option>
-                                <option value="VE">🇻🇪 Venezuela</option>
-                                <option value="CO">🇨🇴 Colombia</option>
-                                <option value="MX">🇲🇽 México</option>
-                                <option value="AR">🇦🇷 Argentina</option>
-                            </select>
-                        </div>
+
+                    <div className="relative flex-grow rounded-xl overflow-hidden border border-white/[0.08]">
+                        {isMounted ? (
+                            <gmp-map ref={destMapRef} center="48.8566,2.3522" zoom="4" map-id="DEMO_MAP_ID" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+                                <div slot="control-block-start-inline-start" className="p-3 w-[260px] md:w-[300px]">
+                                    <gmpx-place-picker ref={destPickerRef} placeholder="¿Hacia dónde va?"></gmpx-place-picker>
+                                </div>
+                                <gmp-advanced-marker ref={destMarkerRef}></gmp-advanced-marker>
+                            </gmp-map>
+                        ) : (
+                            <div className="w-full h-full bg-white/5 animate-pulse flex items-center justify-center absolute top-0 left-0">
+                                <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+                            </div>
+                        )}
+                        <input type="hidden" name="destinationPostalCode" value={destPostalCode} />
+                        <input type="hidden" name="destinationCountry" value={destCountry} />
                     </div>
+                    {(formState?.fieldErrors?.destinationPostalCode || formState?.fieldErrors?.destinationCountry) && (
+                        <p className="form-error mt-2 shrink-0">Por favor busca y selecciona una dirección válida.</p>
+                    )}
                 </div>
 
                 {/* ── Package Card ───────────────────────────────── */}
-                <div className="bento-card col-span-1 md:col-span-2 lg:col-span-1">
-                    <div className="flex items-center gap-2 mb-4">
+                <div className="bento-card col-span-1 md:col-span-2 lg:col-span-1 h-[400px] flex flex-col">
+                    <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-amber">
                             <Package className="w-4 h-4" />
                         </div>
@@ -156,11 +211,11 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             Paquete
                         </h3>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-4 flex-grow overflow-auto pr-2">
                         <div>
                             <label className="form-label" htmlFor="weight">
                                 <Weight className="w-3 h-3 inline mr-1" />
-                                Peso (kg)
+                                Peso Real (kg)
                             </label>
                             <input
                                 id="weight"
@@ -169,6 +224,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                                 step="0.1"
                                 min="0.1"
                                 required
+                                value={dimensions.weight}
+                                onChange={(e) => setDimensions({ ...dimensions, weight: +e.target.value })}
                                 placeholder="2.5"
                                 className="form-input"
                             />
@@ -188,6 +245,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                                     step="1"
                                     min="1"
                                     required
+                                    value={dimensions.length}
+                                    onChange={(e) => setDimensions({ ...dimensions, length: +e.target.value })}
                                     placeholder="30"
                                     className="form-input"
                                 />
@@ -203,6 +262,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                                     step="1"
                                     min="1"
                                     required
+                                    value={dimensions.width}
+                                    onChange={(e) => setDimensions({ ...dimensions, width: +e.target.value })}
                                     placeholder="20"
                                     className="form-input"
                                 />
@@ -218,6 +279,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                                     step="1"
                                     min="1"
                                     required
+                                    value={dimensions.height}
+                                    onChange={(e) => setDimensions({ ...dimensions, height: +e.target.value })}
                                     placeholder="15"
                                     className="form-input"
                                 />
@@ -228,6 +291,12 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                             formState?.fieldErrors?.height) && (
                                 <p className="form-error">Las dimensiones deben ser mayores que 0</p>
                             )}
+
+                        {billableWeight > dimensions.weight && (
+                            <div className="mt-4 text-xs bg-amber-500/10 text-amber-300 p-3 rounded-lg border border-amber-500/20">
+                                ⚠️ <strong>Aviso:</strong> Se aplicará peso volumétrico ({billableWeight.toFixed(2)} kg) debido al tamaño de la caja.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -241,7 +310,7 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
             )}
 
             {/* ── Submit Button ───────────────────────────────── */}
-            <div className="mt-6 flex justify-center">
+            <div className="mt-8 flex justify-center">
                 <button
                     type="submit"
                     disabled={isPending}

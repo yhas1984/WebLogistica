@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createServiceClient } from '@/lib/supabase/server';
+import { purchaseLabel } from '@/actions/purchase-label';
 
 export async function POST(request: NextRequest) {
     const body = await request.text();
@@ -70,9 +71,10 @@ export async function POST(request: NextRequest) {
                     throw updateError;
                 }
 
-                // TODO: Call carrier API to purchase actual label
-                // TODO: Upload PDF to Supabase Storage
-                // TODO: Update shipment with tracking_number and label_url
+                // Initiate background purchase label
+                purchaseLabel(metadata.shipmentId).catch((error) => {
+                    console.error('[Stripe Webhook] Background label purchase failed:', error);
+                });
             } catch (error) {
                 console.error('[Stripe Webhook] Processing error:', error);
                 return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });

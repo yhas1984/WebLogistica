@@ -6,35 +6,90 @@
 // ============================================================
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { getGeneiLabel } from '@/lib/carriers/genei';
 
 export async function purchaseLabel(
-    shipmentId: string,
-    provider: string,
-    rateId: string
+    shipmentId: string
 ): Promise<{ success: boolean; labelUrl?: string; error?: string }> {
     try {
         const supabase = await createServiceClient();
 
-        // TODO: Call the actual carrier API to purchase the label
-        // For now, simulate label generation
-        const mockLabelUrl = `https://storage.example.com/labels/${shipmentId}.pdf`;
+        // 1. Obtener los datos del envío
+        const { data: shipment, error: fetchError } = await supabase
+            .from('shipments')
+            .select('*')
+            .eq('id', shipmentId)
+            .single();
+
+        if (fetchError || !shipment) {
+            throw new Error(`[purchaseLabel] Shipment not found: ${shipmentId}`);
+        }
+
+        let tracking = `WL${Date.now().toString(36).toUpperCase()}`;
+        let labelUrl = '';
+
+        // 2. Comprar según provider con Alerta de Seguridad (Try-Catch robusto)
+        try {
+            if (shipment.provider === 'genei') {
+                const result = await getGeneiLabel(shipment);
+                if (result.tracking) tracking = result.tracking;
+
+                if (result.pdf) {
+                    // 3. Resiliencia: Almacenamiento de Etiquetas en Storage (Supabase)
+                    try {
+                        const pdfResponse = await fetch(result.pdf);
+                        if (!pdfResponse.ok) throw new Error('Could not fetch PDF from Genei');
+                        const arrayBuffer = await pdfResponse.arrayBuffer();
+                        const buffer = Buffer.from(arrayBuffer);
+
+                        const fileName = `${shipmentId}_${Date.now()}.pdf`;
+                        const { error: uploadError } = await supabase.storage
+                            .from('shipping_labels')
+                            .upload(fileName, buffer, {
+                                contentType: 'application/pdf',
+                                upsert: true,
+                            });
+
+                        if (uploadError) throw uploadError;
+
+                        // Retrieve the permanent URL from the bucket
+                        const { data: publicUrlData } = supabase.storage
+                            .from('shipping_labels')
+                            .getPublicUrl(fileName);
+
+                        labelUrl = publicUrlData.publicUrl;
+                    } catch (uploadObjError) {
+                        console.error('[purchaseLabel] Error uploading to Supabase, falling back to Carrier URL', uploadObjError);
+                        labelUrl = result.pdf;
+                    }
+                }
+            }
+        } catch (labelError) {
+            console.error('[purchaseLabel] Failed to generate/fetch label from Carrier:', labelError);
+            // Fallback status to manual intervention if label fails but money was paid
+            await supabase.from('shipments')
+                .update({ status: 'manual_intervention_required', updated_at: new Date().toISOString() })
+                .eq('id', shipmentId);
+
+            throw new Error('Generación de etiqueta fallida, requiere intervención manual.');
+        }
 
         // Update shipment record
-        const { error } = await supabase
+        const { error: updateError } = await supabase
             .from('shipments')
             .update({
-                status: 'label_created',
-                label_url: mockLabelUrl,
-                tracking_number: `WL${Date.now().toString(36).toUpperCase()}`,
+                status: 'labels_generated', // Status indicating completion of label generation
+                label_url: labelUrl,
+                tracking_number: tracking,
                 updated_at: new Date().toISOString(),
             })
             .eq('id', shipmentId);
 
-        if (error) {
-            throw error;
+        if (updateError) {
+            throw updateError;
         }
 
-        return { success: true, labelUrl: mockLabelUrl };
+        return { success: true, labelUrl };
     } catch (error) {
         console.error('[purchaseLabel] Error:', error);
         return { success: false, error: 'No se pudo generar la etiqueta' };

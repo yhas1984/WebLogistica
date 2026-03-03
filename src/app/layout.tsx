@@ -32,6 +32,9 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script type="module" src="https://ajax.googleapis.com/ajax/libs/@googlemaps/extended-component-library/0.6.11/index.min.js"></script>
+      </head>
       <body className="font-sans antialiased">
         {/* Ambient Background */}
         <div className="bg-mesh" aria-hidden="true" />

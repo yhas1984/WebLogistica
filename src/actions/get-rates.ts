@@ -5,6 +5,8 @@
 // ============================================================
 
 import { z } from 'zod';
+import { headers } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase/server';
 import { getOptimizedRates } from '@/lib/logistics-orchestrator';
 import type { RateResultsData } from '@/types';
 
@@ -53,9 +55,20 @@ export async function getRatesAction(
             };
         }
 
-        const subdomainMarkup = parseFloat(
-            (formData.get('subdomainMarkup') as string) || '0'
-        );
+        // Lookup specific markup based on Host header (Subdomain specific logic)
+        const reqHeaders = await headers();
+        const host = reqHeaders.get('host') || '';
+        const domain = host.split(':')[0]; // strip port just in case
+
+        const supabase = await createServiceClient();
+        const { data: subdomainData } = await supabase
+            .from('subdomains')
+            .select('markup_percentage')
+            .eq('domain', domain)
+            .single();
+
+        // Use 15% as fallback for generic web, otherwise apply specific subdomain markup
+        const subdomainMarkup = subdomainData?.markup_percentage ?? 15;
 
         const results = await getOptimizedRates(validation.data, subdomainMarkup);
 
