@@ -37,7 +37,7 @@ export async function getTracking(
 
     if (!shippoApiKey) {
         console.warn('[Tracking] No API key configured');
-        return getDemoTracking(trackingNumber, carrierSlug);
+        throw new Error('No API key configured for Shippo tracking');
     }
 
     try {
@@ -55,7 +55,7 @@ export async function getTracking(
 
         if (!response.ok) {
             console.warn(`[Tracking] Shippo tracking failed, status: ${response.status}`);
-            return getDemoTracking(trackingNumber, carrierSlug); // Fallback to demo for UI purposes if not found
+            return null; // Return null to indicate no tracking found
         }
 
         const data = await response.json();
@@ -80,38 +80,7 @@ export async function getTracking(
         };
     } catch (error) {
         console.error('[Tracking] Get tracking failed:', error);
-        return getDemoTracking(trackingNumber, carrierSlug);
+        throw error;
     }
 }
 
-function getDemoTracking(trackingNumber: string, carrierSlug: string): TrackingData {
-    return {
-        id: `demo-tracking-${trackingNumber}`,
-        tracking_number: trackingNumber,
-        slug: carrierSlug || 'dhl',
-        tag: 'InTransit',
-        title: `Shipment ${trackingNumber}`,
-        expected_delivery: new Date(Date.now() + 3 * 86400000).toISOString(),
-        provider: 'native',
-        checkpoints: [
-            {
-                slug: carrierSlug || 'dhl',
-                city: 'Madrid',
-                created_at: new Date(Date.now() - 86400000).toISOString(),
-                message: 'Shipment picked up',
-                tag: 'InTransit',
-                checkpoint_time: new Date(Date.now() - 86400000).toISOString(),
-                location: 'Madrid, ES',
-            },
-            {
-                slug: carrierSlug || 'dhl',
-                city: 'Barcelona',
-                created_at: new Date().toISOString(),
-                message: 'In transit to destination',
-                tag: 'InTransit',
-                checkpoint_time: new Date().toISOString(),
-                location: 'Barcelona, ES',
-            },
-        ],
-    };
-}
