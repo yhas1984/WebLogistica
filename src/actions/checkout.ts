@@ -36,9 +36,9 @@ export async function createCheckoutSession(rateId: string, rateData: any) {
         if (dbError) throw dbError;
 
         const session = await stripe.checkout.sessions.create({
-            // Habilitamos métodos de pago automáticos para aceptar Google Pay, Apple Pay, PayPal, etc.
-            // siempre y cuando estén activos en el dashboard de Stripe.
-            automatic_payment_methods: { enabled: true },
+            // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
+            // automatic payment methods. 'card' covers Apple and Google Pay.
+            payment_method_types: ['card', 'paypal', 'link'] as any,
             line_items: [
                 {
                     price_data: {
@@ -98,8 +98,9 @@ export async function continueCheckoutSession(shipmentId: string) {
         }
 
         const session = await stripe.checkout.sessions.create({
-            // Habilitamos métodos de pago automáticos para aceptar Google Pay, Apple Pay, PayPal, etc.
-            automatic_payment_methods: { enabled: true },
+            // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
+            // automatic payment methods. 'card' covers Apple and Google Pay.
+            payment_method_types: ['card', 'paypal', 'link'] as any,
             line_items: [
                 {
                     price_data: {
