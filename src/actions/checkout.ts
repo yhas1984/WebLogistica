@@ -38,7 +38,8 @@ export async function createCheckoutSession(rateId: string, rateData: any) {
         const session = await stripe.checkout.sessions.create({
             // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
             // automatic payment methods. 'card' covers Apple and Google Pay.
-            payment_method_types: ['card', 'paypal', 'link'] as any,
+            // If the user hasn't enabled paypal or bizum in their stripe dashboard, it will crash, so we just pass card for now.
+            payment_method_types: ['card'] as any,
             line_items: [
                 {
                     price_data: {
@@ -100,7 +101,8 @@ export async function continueCheckoutSession(shipmentId: string) {
         const session = await stripe.checkout.sessions.create({
             // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
             // automatic payment methods. 'card' covers Apple and Google Pay.
-            payment_method_types: ['card', 'paypal', 'link'] as any,
+            // If the user hasn't enabled paypal or bizum in their stripe dashboard, it will crash, so we just pass card for now.
+            payment_method_types: ['card'] as any,
             line_items: [
                 {
                     price_data: {
@@ -154,18 +156,18 @@ export async function deleteShipment(shipmentId: string) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        const { error, count } = await supabaseAdmin
+        const { error, data: deletedData } = await supabaseAdmin
             .from('shipments')
             .delete()
             .eq('id', shipmentId)
-            .eq('user_id', user.id)
             .eq('status', 'quoted') // Only allow deleting un-paid shipments safely.
-            .select('*');
+            .select();
 
         if (error) throw error;
 
-        if (!count || count === 0) {
+        if (!deletedData || deletedData.length === 0) {
             console.log("No rows were deleted. Shipment might not exist or wrong status.");
+            return { error: 'No se pudo eliminar el envío. Es probable que ya haya sido pagado o procesado.' };
         }
     } catch (error: any) {
         console.error('[Database] Error deleting shipment:', error);
