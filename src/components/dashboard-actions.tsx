@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { continueCheckoutSession, deleteShipment } from '@/actions/checkout';
 import { CreditCard, Trash2, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export function DashboardActions({ shipmentId, status }: { shipmentId: string, status: string }) {
     const [isLoadingPay, setIsLoadingPay] = useState(false);
@@ -10,12 +11,19 @@ export function DashboardActions({ shipmentId, status }: { shipmentId: string, s
 
     if (status !== 'quoted') return null;
 
+    const router = useRouter();
+
     const handlePay = async () => {
         setIsLoadingPay(true);
         try {
-            await continueCheckoutSession(shipmentId);
+            const result = await continueCheckoutSession(shipmentId);
+            if (result?.error) {
+                alert(result.error);
+                console.error(result.error);
+            }
         } catch (error) {
             console.error('Error continuing payment:', error);
+        } finally {
             setIsLoadingPay(false);
         }
     };
@@ -25,7 +33,13 @@ export function DashboardActions({ shipmentId, status }: { shipmentId: string, s
 
         setIsLoadingDelete(true);
         try {
-            await deleteShipment(shipmentId);
+            const result = await deleteShipment(shipmentId);
+            if (result?.error) {
+                alert(result.error);
+                console.error(result.error);
+            } else {
+                router.refresh();
+            }
         } catch (error) {
             console.error('Error deleting shipment:', error);
         } finally {
