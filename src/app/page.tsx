@@ -4,8 +4,6 @@
 // Landing Page — Quote + Rate Comparison
 // ============================================================
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Truck,
   Shield,
@@ -15,70 +13,9 @@ import {
   Sparkles,
   BarChart3,
 } from 'lucide-react';
-import QuoteForm from '@/components/quote-form';
-import RateResults from '@/components/rate-results';
-import { CheckoutDetailsForm } from '@/components/checkout-details-form';
-import type { RateResultsData, CarrierRate, Address } from '@/types';
+import { ShippingFunnel } from '@/components/shipping-funnel';
 
 export default function HomePage() {
-  const router = useRouter();
-  const [rateResults, setRateResults] = useState<RateResultsData | null>(null);
-  const [selectedRate, setSelectedRate] = useState<CarrierRate | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
-
-  function handleResults(data: RateResultsData) {
-    setRateResults(data);
-    setSelectedRate(null);
-    setShowDetails(false);
-    // Scroll to results
-    setTimeout(() => {
-      document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }
-
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-
-  // Paso 1: Seleccionar tarifa, abre el formulario de detalles
-  function handleSelectRate(rate: CarrierRate) {
-    setSelectedRate(rate);
-    setShowDetails(true);
-    // Scroll to details
-    setTimeout(() => {
-      document.getElementById('details')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }
-
-  // Paso 2: Con los detalles listos, vamos a Stripe
-  async function handleProceedToPayment(origin: Address, dest: Address) {
-    if (!selectedRate || !rateResults) return;
-
-    setIsCheckingOut(true);
-    try {
-      const { createCheckoutSession } = await import('@/actions/checkout');
-      const result = await createCheckoutSession(
-        selectedRate.id,
-        {
-          ...selectedRate,
-          dimensions: rateResults.parcel
-        },
-        origin,
-        dest
-      );
-
-      if (result?.error) {
-        if (result.error.includes('iniciar sesión')) {
-          router.push('/login');
-        } else {
-          alert(result.error);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsCheckingOut(false);
-    }
-  }
-
   return (
     <div className="relative">
       {/* ── Hero Section ──────────────────────────────────── */}
@@ -132,122 +69,79 @@ export default function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        {!rateResults && (
-          <div className="flex justify-center mb-8">
-            <a href="#quote" className="animate-float">
-              <ArrowDown className="w-5 h-5 text-white/20" />
-            </a>
-          </div>
-        )}
+        <div className="flex justify-center mb-8">
+          <a href="#funnel" className="animate-float">
+            <ArrowDown className="w-5 h-5 text-white/20" />
+          </a>
+        </div>
       </section>
 
-      {/* ── Quote Section ─────────────────────────────────── */}
-      {!showDetails && (
-        <section id="quote" className="px-6 pb-16 max-w-7xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 mb-3">
-              <Truck className="w-5 h-5 text-blue-400" />
-              <h2 className="text-xl font-bold text-white">Cotiza tu envío</h2>
-            </div>
-            <p className="text-sm text-white/40">
-              Introduce los datos de tu paquete para comparar tarifas
-            </p>
-          </div>
-          <QuoteForm onResults={handleResults} />
-        </section>
-      )}
-
-      {/* ── Results Section ───────────────────────────────── */}
-      {rateResults && !showDetails && (
-        <section id="results" className="px-6 pb-16 max-w-7xl mx-auto">
-          <RateResults data={rateResults} onSelectRate={handleSelectRate} />
-        </section>
-      )}
-
-      {/* ── Details Form Section (NUEVO) ────────────────────── */}
-      {showDetails && selectedRate && rateResults && (
-        <section id="details" className="px-6 pb-16">
-          <CheckoutDetailsForm
-            baseOrigin={{
-              postalCode: rateResults.searchParams.origin.postalCode,
-              city: rateResults.searchParams.origin.city,
-              countryCode: rateResults.searchParams.origin.country
-            }}
-            baseDest={{
-              postalCode: rateResults.searchParams.destination.postalCode,
-              city: rateResults.searchParams.destination.city,
-              countryCode: rateResults.searchParams.destination.country
-            }}
-            rateSelected={selectedRate}
-            onProceedToPayment={handleProceedToPayment}
-            onBack={() => setShowDetails(false)}
-          />
-        </section>
-      )}
+      {/* ── Shipping Funnel (Wizard) ────────────────────────── */}
+      <section id="funnel" className="relative z-10 scroll-mt-20">
+        <ShippingFunnel />
+      </section>
 
       {/* ── Features Grid ─────────────────────────────────── */}
-      {!showDetails && (
-        <section className="px-6 py-20 max-w-7xl mx-auto border-t border-white/5">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl font-bold text-white mb-3">
-              ¿Por qué WebLogistica?
-            </h2>
-            <p className="text-white/40 text-sm max-w-md mx-auto">
-              La plataforma de logística más inteligente de Europa
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              {
-                icon: <BarChart3 className="w-5 h-5" />,
-                title: 'Peso Volumétrico Inteligente',
-                desc: 'Calculamos automáticamente el peso facturable (real vs volumétrico) para que siempre sepas el precio real.',
-                color: 'icon-badge-blue',
-              },
-              {
-                icon: <Shield className="w-5 h-5" />,
-                title: 'Pago 100% Seguro',
-                desc: 'Pagos procesados por Stripe. Tu dinero protegido con estándares PCI DSS nivel 1.',
-                color: 'icon-badge-emerald',
-              },
-              {
-                icon: <Globe className="w-5 h-5" />,
-                title: 'Cobertura Global',
-                desc: 'Envía a más de 200 países. Gestión de aduanas simplificada para envíos internacionales.',
-                color: 'icon-badge-purple',
-              },
-              {
-                icon: <Truck className="w-5 h-5" />,
-                title: 'Multi-Transportista',
-                desc: 'Comparamos DHL, SEUR, UPS, FedEx, GLS, MRW, Correos y muchos más en una sola búsqueda.',
-                color: 'icon-badge-amber',
-              },
-              {
-                icon: <Zap className="w-5 h-5" />,
-                title: 'Etiquetas Instantáneas',
-                desc: 'Tras el pago, generamos tu etiqueta de envío al instante. Sin esperas, sin trámites.',
-                color: 'icon-badge-blue',
-              },
-              {
-                icon: <Sparkles className="w-5 h-5" />,
-                title: 'Rastreo en Tiempo Real',
-                desc: 'Seguimiento unificado de todos tus envíos desde una sola pantalla, con notificaciones automáticas.',
-                color: 'icon-badge-purple',
-              },
-            ].map((feat, i) => (
-              <div
-                key={i}
-                className="bento-card"
-                style={{ animationDelay: `${i * 50}ms` }}
-              >
-                <div className={`icon-badge ${feat.color} mb-4`}>{feat.icon}</div>
-                <h3 className="text-white font-semibold mb-2">{feat.title}</h3>
-                <p className="text-white/40 text-sm leading-relaxed">{feat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="px-6 py-20 max-w-7xl mx-auto border-t border-white/5">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl font-bold text-white mb-3">
+            ¿Por qué WebLogistica?
+          </h2>
+          <p className="text-white/40 text-sm max-w-md mx-auto">
+            La plataforma de logística más inteligente de Europa
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            {
+              icon: <BarChart3 className="w-5 h-5" />,
+              title: 'Peso Volumétrico Inteligente',
+              desc: 'Calculamos automáticamente el peso facturable (real vs volumétrico) para que siempre sepas el precio real.',
+              color: 'icon-badge-blue',
+            },
+            {
+              icon: <Shield className="w-5 h-5" />,
+              title: 'Pago 100% Seguro',
+              desc: 'Pagos procesados por Stripe. Tu dinero protegido con estándares PCI DSS nivel 1.',
+              color: 'icon-badge-emerald',
+            },
+            {
+              icon: <Globe className="w-5 h-5" />,
+              title: 'Cobertura Global',
+              desc: 'Envía a más de 200 países. Gestión de aduanas simplificada para envíos internacionales.',
+              color: 'icon-badge-purple',
+            },
+            {
+              icon: <Truck className="w-5 h-5" />,
+              title: 'Multi-Transportista',
+              desc: 'Comparamos DHL, SEUR, UPS, FedEx, GLS, MRW, Correos y muchos más en una sola búsqueda.',
+              color: 'icon-badge-amber',
+            },
+            {
+              icon: <Zap className="w-5 h-5" />,
+              title: 'Etiquetas Instantáneas',
+              desc: 'Tras el pago, generamos tu etiqueta de envío al instante. Sin esperas, sin trámites.',
+              color: 'icon-badge-blue',
+            },
+            {
+              icon: <Sparkles className="w-5 h-5" />,
+              title: 'Rastreo en Tiempo Real',
+              desc: 'Seguimiento unificado de todos tus envíos desde una sola pantalla, con notificaciones automáticas.',
+              color: 'icon-badge-purple',
+            },
+          ].map((feat, i) => (
+            <div
+              key={i}
+              className="bento-card"
+              style={{ animationDelay: `${i * 50}ms` }}
+            >
+              <div className={`icon-badge ${feat.color} mb-4`}>{feat.icon}</div>
+              <h3 className="text-white font-semibold mb-2">{feat.title}</h3>
+              <p className="text-white/40 text-sm leading-relaxed">{feat.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

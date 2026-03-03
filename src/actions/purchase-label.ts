@@ -97,9 +97,12 @@ export async function purchaseLabel(
                 if (!userError && userData?.user?.email) {
                     await sendLabelEmail({
                         to: userData.user.email,
+                        customerName: shipment.origin_data?.name || userData.user.user_metadata?.full_name || 'Cliente',
+                        originCity: shipment.origin_data?.city || 'Origen',
+                        destCity: shipment.destination_data?.city || 'Destino',
                         trackingNumber: tracking,
                         labelUrl: labelUrl,
-                        shipmentId: shipmentId
+                        carrierName: shipment.carrier_name || 'Carrier'
                     });
                 }
             }
