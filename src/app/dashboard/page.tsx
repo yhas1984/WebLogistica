@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { Package, Clock, Truck, CheckCircle2, FileText, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { DashboardActions } from '@/components/dashboard-actions';
 
 export const metadata = {
     title: 'Mis Envíos | WebLogistica',
@@ -119,9 +120,12 @@ export default async function DashboardPage() {
                                         {new Date(shipment.created_at).toLocaleDateString('es-ES')}
                                     </p>
                                 </div>
-                                <p className="text-white font-semibold text-sm">
-                                    {Number(shipment.final_price).toFixed(2)}€
-                                </p>
+                                <div className="flex flex-col items-end gap-3">
+                                    <p className="text-white font-semibold text-sm">
+                                        {Number(shipment.final_price).toFixed(2)}€
+                                    </p>
+                                    <DashboardActions shipmentId={shipment.id} status={shipment.status} />
+                                </div>
                             </div>
                         );
                     })

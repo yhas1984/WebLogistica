@@ -70,3 +70,91 @@ export async function createCheckoutSession(rateId: string, rateData: any) {
         redirect(redirectUrl);
     }
 }
+
+export async function continueCheckoutSession(shipmentId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return { error: 'Debes iniciar sesión.' };
+    }
+
+    let redirectUrl: string | null = null;
+
+    try {
+        const { data: shipment, error: dbError } = await supabase
+            .from('shipments')
+            .select('*')
+            .eq('id', shipmentId)
+            .eq('user_id', user.id)
+            .single();
+
+        if (dbError || !shipment) throw new Error('Envío no encontrado');
+
+        if (shipment.status !== 'quoted') {
+            throw new Error('Este envío ya ha sido procesado');
+        }
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: `Envío ${shipment.carrier_name} - ${shipment.service_name}`,
+                            description: `Transporte de paquete`,
+                        },
+                        unit_amount: Math.round(Number(shipment.final_price) * 100),
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?cancelled=true`,
+            metadata: {
+                shipmentId: shipment.id,
+                userId: user.id,
+            },
+        });
+
+        if (!session.url) throw new Error('No se pudo crear la sesión de Stripe');
+        redirectUrl = session.url;
+    } catch (error: any) {
+        console.error('[Stripe] Error continuing checkout session:', error);
+        return { error: 'Ocurrió un error al procesar el pago.' };
+    }
+
+    if (redirectUrl) {
+        redirect(redirectUrl);
+    }
+}
+
+import { revalidatePath } from 'next/cache';
+
+export async function deleteShipment(shipmentId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return { error: 'Debes iniciar sesión.' };
+    }
+
+    try {
+        const { error } = await supabase
+            .from('shipments')
+            .delete()
+            .eq('id', shipmentId)
+            .eq('user_id', user.id)
+            .eq('status', 'quoted'); // Only allow deleting un-paid shipments safely.
+
+        if (error) throw error;
+    } catch (error: any) {
+        console.error('[Database] Error deleting shipment:', error);
+        return { error: 'No se pudo eliminar el envío.' };
+    }
+
+    revalidatePath('/dashboard');
+    return { success: true };
+}
