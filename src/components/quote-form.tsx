@@ -40,13 +40,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
     const [destCountry, setDestCountry] = useState("ES");
 
     // Refs for GMP Components
-    const originMapRef = useRef<any>(null);
     const originPickerRef = useRef<any>(null);
-    const originMarkerRef = useRef<any>(null);
-
-    const destMapRef = useRef<any>(null);
     const destPickerRef = useRef<any>(null);
-    const destMarkerRef = useRef<any>(null);
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
 
@@ -70,20 +65,10 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
             return { address: place.formattedAddress || place.displayName || '', postalCode, country };
         };
 
-        const setupMapAndPicker = (mapRef: any, pickerRef: any, markerRef: any, setAddress: any, setPostalCode: any, setCountry: any) => {
+        const setupPicker = (pickerRef: any, setAddress: any, setPostalCode: any, setCountry: any) => {
             const handlePlaceChange = () => {
                 const place = pickerRef.current?.value;
                 if (!place) return;
-
-                if (place.location && mapRef.current && markerRef.current) {
-                    if (place.viewport) {
-                        mapRef.current.innerMap.fitBounds(place.viewport);
-                    } else {
-                        mapRef.current.center = place.location;
-                        mapRef.current.zoom = 17;
-                    }
-                    markerRef.current.position = place.location;
-                }
 
                 const data = extractPlaceData(place);
                 setAddress(data.address);
@@ -104,8 +89,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
 
         // We delay the setup slightly to allow the web components to upgrade/mount
         const timeoutId = setTimeout(() => {
-            setupMapAndPicker(originMapRef, originPickerRef, originMarkerRef, setOriginAddress, setOriginPostalCode, setOriginCountry);
-            setupMapAndPicker(destMapRef, destPickerRef, destMarkerRef, setDestAddress, setDestPostalCode, setDestCountry);
+            setupPicker(originPickerRef, setOriginAddress, setOriginPostalCode, setOriginCountry);
+            setupPicker(destPickerRef, setDestAddress, setDestPostalCode, setDestCountry);
         }, 1000);
 
         return () => clearTimeout(timeoutId);
@@ -137,8 +122,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                {/* ── Origin Card with Map ────────────────────────────────── */}
-                <div className="bento-card col-span-1 flex flex-col h-[400px]">
+                {/* ── Origin Card ────────────────────────────────── */}
+                <div className="bento-card col-span-1 flex flex-col h-auto">
                     <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-blue">
                             <MapPin className="w-4 h-4" />
@@ -148,17 +133,14 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                         </h3>
                     </div>
 
-                    <div className="relative flex-grow rounded-xl overflow-hidden border border-white/[0.08]">
+                    <div className="relative flex-grow">
                         {isMounted ? (
-                            <gmp-map ref={originMapRef} center="40.4168,-3.7038" zoom="5" map-id="DEMO_MAP_ID" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
-                                <div slot="control-block-start-inline-start" className="p-3 w-[260px] md:w-[300px]">
-                                    <gmpx-place-picker ref={originPickerRef} placeholder="¿De dónde sale?"></gmpx-place-picker>
-                                </div>
-                                <gmp-advanced-marker ref={originMarkerRef}></gmp-advanced-marker>
-                            </gmp-map>
+                            <div className="w-full">
+                                <gmpx-place-picker ref={originPickerRef} placeholder="¿De dónde sale?" style={{ width: '100%' }}></gmpx-place-picker>
+                            </div>
                         ) : (
-                            <div className="w-full h-full bg-white/5 animate-pulse flex items-center justify-center absolute top-0 left-0">
-                                <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+                            <div className="w-full h-10 bg-white/5 animate-pulse flex items-center justify-center rounded-lg">
+                                <Loader2 className="w-5 h-5 animate-spin text-white/20" />
                             </div>
                         )}
                         <input type="hidden" name="originPostalCode" value={originPostalCode} />
@@ -169,8 +151,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                     )}
                 </div>
 
-                {/* ── Destination Card with Map ───────────────────────────── */}
-                <div className="bento-card col-span-1 flex flex-col h-[400px]">
+                {/* ── Destination Card ───────────────────────────── */}
+                <div className="bento-card col-span-1 flex flex-col h-auto">
                     <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-purple">
                             <MapPin className="w-4 h-4" />
@@ -180,17 +162,14 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                         </h3>
                     </div>
 
-                    <div className="relative flex-grow rounded-xl overflow-hidden border border-white/[0.08]">
+                    <div className="relative flex-grow">
                         {isMounted ? (
-                            <gmp-map ref={destMapRef} center="48.8566,2.3522" zoom="4" map-id="DEMO_MAP_ID" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
-                                <div slot="control-block-start-inline-start" className="p-3 w-[260px] md:w-[300px]">
-                                    <gmpx-place-picker ref={destPickerRef} placeholder="¿Hacia dónde va?"></gmpx-place-picker>
-                                </div>
-                                <gmp-advanced-marker ref={destMarkerRef}></gmp-advanced-marker>
-                            </gmp-map>
+                            <div className="w-full">
+                                <gmpx-place-picker ref={destPickerRef} placeholder="¿Hacia dónde va?" style={{ width: '100%' }}></gmpx-place-picker>
+                            </div>
                         ) : (
-                            <div className="w-full h-full bg-white/5 animate-pulse flex items-center justify-center absolute top-0 left-0">
-                                <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+                            <div className="w-full h-10 bg-white/5 animate-pulse flex items-center justify-center rounded-lg">
+                                <Loader2 className="w-5 h-5 animate-spin text-white/20" />
                             </div>
                         )}
                         <input type="hidden" name="destinationPostalCode" value={destPostalCode} />
@@ -202,7 +181,7 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
                 </div>
 
                 {/* ── Package Card ───────────────────────────────── */}
-                <div className="bento-card col-span-1 md:col-span-2 lg:col-span-1 h-[400px] flex flex-col">
+                <div className="bento-card col-span-1 md:col-span-2 lg:col-span-1 h-auto flex flex-col">
                     <div className="flex items-center gap-2 mb-4 shrink-0">
                         <div className="icon-badge icon-badge-amber">
                             <Package className="w-4 h-4" />

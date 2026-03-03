@@ -68,7 +68,9 @@ export async function getRatesAction(
             .single();
 
         // Use 15% as fallback for generic web, otherwise apply specific subdomain markup
-        const subdomainMarkup = subdomainData?.markup_percentage ?? 15;
+        // Convert integer percentage (e.g., 15) to decimal (0.15) for the pricing formula
+        const rawMarkup = subdomainData?.markup_percentage ?? 15;
+        const subdomainMarkup = rawMarkup / 100;
 
         const results = await getOptimizedRates(validation.data, subdomainMarkup);
 
