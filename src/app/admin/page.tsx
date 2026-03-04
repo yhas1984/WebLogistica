@@ -82,7 +82,8 @@ export default async function AdminDashboardPage() {
     if (!user) redirect("/login");
 
     // Solo el admin puede ver esta página
-    if (user.email !== "y.h.a.s1984@gmail.com") redirect("/dashboard");
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail || user.email !== adminEmail) redirect("/dashboard");
 
     // 2. Admin client (bypass RLS)
     const supabaseAdmin = createSupabaseClient(
