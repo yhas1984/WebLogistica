@@ -81,3 +81,77 @@ export async function approveManualPayment(formData: FormData) {
     // 6. Revalidate admin page
     revalidatePath('/admin');
 }
+
+/**
+ * Delete a shipment as an admin
+ */
+export async function deleteShipmentAdmin(formData: FormData) {
+    const shipmentId = formData.get('shipmentId') as string;
+
+    if (!shipmentId) {
+        throw new Error('Missing shipmentId');
+    }
+
+    const supabaseAuth = await createClient();
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) redirect('/login');
+
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail || user.email !== adminEmail) {
+        throw new Error('Unauthorized: Only admin can delete');
+    }
+
+    const supabase = await createServiceClient();
+
+    const { error } = await supabase
+        .from('shipments')
+        .delete()
+        .eq('id', shipmentId);
+
+    if (error) {
+        console.error('[Admin] Error deleting shipment:', error);
+        throw new Error('Error al eliminar el envío');
+    }
+
+    console.log(`[Admin] Shipment ${shipmentId} deleted by ${user.email}`);
+    revalidatePath('/admin');
+}
+
+/**
+ * Update shipment status as an admin
+ */
+export async function updateShipmentStatusAdmin(formData: FormData) {
+    const shipmentId = formData.get('shipmentId') as string;
+    const newStatus = formData.get('status') as string;
+
+    if (!shipmentId || !newStatus) {
+        throw new Error('Missing shipmentId or status');
+    }
+
+    const supabaseAuth = await createClient();
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) redirect('/login');
+
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail || user.email !== adminEmail) {
+        throw new Error('Unauthorized: Only admin can update status');
+    }
+
+    const supabase = await createServiceClient();
+
+    const { error } = await supabase
+        .from('shipments')
+        .update({
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', shipmentId);
+
+    if (error) {
+        console.error('[Admin] Error updating shipment status:', error);
+        throw new Error('Error al actualizar el estado');
+    }
+
+    console.log(`[Admin] Shipment ${shipmentId} status updated to ${newStatus} by ${user.email}`);
+    revalidatePath('/admin');
+}

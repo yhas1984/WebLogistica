@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { approveManualPayment } from "@/actions/admin";
+import { approveManualPayment, deleteShipmentAdmin, updateShipmentStatusAdmin } from "@/actions/admin";
 import {
     DollarSign,
     TrendingUp,
@@ -12,6 +12,8 @@ import {
     AlertCircle,
     FileText,
     CheckCircle,
+    Trash2,
+    Save
 } from "lucide-react";
 
 export const revalidate = 0; // Siempre datos en vivo, sin caché
@@ -319,33 +321,70 @@ export default async function AdminDashboardPage() {
                                         {/* Actions */}
                                         <td className="px-5 py-3.5 text-right">
                                             <div className="flex items-center justify-end gap-2">
+                                                <form action={updateShipmentStatusAdmin} className="flex items-center gap-1">
+                                                    <input type="hidden" name="shipmentId" value={shipment.id} />
+                                                    <select
+                                                        name="status"
+                                                        defaultValue={shipment.status}
+                                                        className="bg-black/20 border border-white/10 rounded-md text-xs text-white/80 py-1.5 px-2 outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                                    >
+                                                        <option value="pending_payment">Pend. Pago</option>
+                                                        <option value="paid">Pagado</option>
+                                                        <option value="labels_generated">Etiqueta Lista</option>
+                                                        <option value="in_transit">En Tránsito</option>
+                                                        <option value="delivered">Entregado</option>
+                                                        <option value="cancelled">Cancelado</option>
+                                                    </select>
+                                                    <button
+                                                        type="submit"
+                                                        title="Guardar estado"
+                                                        className="p-1.5 rounded-md bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                                                    >
+                                                        <Save className="w-4 h-4" />
+                                                    </button>
+                                                </form>
+
                                                 {isPending && (
                                                     <form action={approveManualPayment}>
                                                         <input type="hidden" name="shipmentId" value={shipment.id} />
                                                         <button
                                                             type="submit"
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                                            title="Aprobar pago"
+                                                            className="inline-flex items-center justify-center p-1.5 rounded-md
                                                                 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25
                                                                 hover:bg-emerald-500/25 transition-all cursor-pointer"
                                                         >
-                                                            <CheckCircle className="w-3 h-3" />
-                                                            Aprobar
+                                                            <CheckCircle className="w-4 h-4" />
                                                         </button>
                                                     </form>
                                                 )}
+
                                                 {shipment.status === 'labels_generated' && shipment.label_url && (
                                                     <a
                                                         href={shipment.label_url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                                                            bg-white/[0.05] text-white/60 border border-white/[0.08]
-                                                            hover:bg-white/[0.1] hover:text-white/80 transition-all"
+                                                        title="Ver Etiqueta PDF"
+                                                        className="inline-flex items-center p-1.5 rounded-md
+                                                            bg-blue-500/15 text-blue-400 border border-blue-500/25
+                                                            hover:bg-blue-500/25 hover:text-blue-300 transition-all"
                                                     >
-                                                        <FileText className="w-3 h-3" />
-                                                        PDF
+                                                        <FileText className="w-4 h-4" />
                                                     </a>
                                                 )}
+
+                                                <form action={deleteShipmentAdmin} onSubmit={(e) => {
+                                                    if (!confirm('¿Seguro que deseas eliminar este envío? Esta acción no se puede deshacer.')) e.preventDefault();
+                                                }}>
+                                                    <input type="hidden" name="shipmentId" value={shipment.id} />
+                                                    <button
+                                                        type="submit"
+                                                        title="Eliminar Envío"
+                                                        className="p-1.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 transition-all cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
