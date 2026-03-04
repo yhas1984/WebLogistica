@@ -81,8 +81,8 @@ export default async function AdminDashboardPage() {
     const { data: { user } } = await supabaseAuth.auth.getUser();
     if (!user) redirect("/login");
 
-    // TODO: Restringe a tu email de admin
-    // if (user.email !== "tu_email_admin@dominio.com") redirect("/dashboard");
+    // Solo el admin puede ver esta página
+    if (user.email !== "y.h.a.s1984@gmail.com") redirect("/dashboard");
 
     // 2. Admin client (bypass RLS)
     const supabaseAdmin = createSupabaseClient(
