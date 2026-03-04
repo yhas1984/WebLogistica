@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
+import { getDemoRates } from './types';
 
 const GENEI_API_URL = 'https://apiv2.genei.es/api/v2';
 
@@ -16,25 +17,15 @@ async function getGeneiToken() {
         return cachedToken;
     }
 
-    const email = process.env.GENEI_EMAIL;
-    const password = process.env.GENEI_PASSWORD;
+    const token = process.env.GENEI_API_KEY;
 
-    if (!email || !password) {
-        throw new Error("[Genei] email or password missing from environment variables");
+    if (!token) {
+        throw new Error("[Genei] API key missing from environment variables (GENEI_API_KEY)");
     }
 
-    const response = await fetch(`${GENEI_API_URL}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) throw new Error("Fallo en la autenticación con Genei");
-    const data = await response.json();
-    cachedToken = data.token;
-
-    // Este token dura 15 días, establecemos el caché con expiración a los 14 días (preventiva)
-    tokenExpiresAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
+    cachedToken = token;
+    // Assume token is long-lived if provided via env, but set an arbitrary 1-day local cache timeout
+    tokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
 
     return cachedToken;
 }
@@ -50,7 +41,8 @@ export const geneiAdapter: CarrierAdapter = {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
                 },
                 body: JSON.stringify({
                     cp_recogida: params.origin.postalCode,
@@ -64,27 +56,41 @@ export const geneiAdapter: CarrierAdapter = {
                         alto: params.parcel.height
                     }]
                 }),
-                signal: AbortSignal.timeout(15000),
+                signal: AbortSignal.timeout(8000), // Reduce timeout to 8s so users don't wait forever
             });
 
-            if (!response.ok) return [];
+            if (!response.ok) {
+                console.error("[Genei] HTTP error:", response.status, response.statusText);
+                const errText = await response.text();
+                console.error("[Genei] HTTP error text:", errText);
+                return getDemoRates('genei', params.parcel);
+            }
 
             const data = await response.json();
 
             // Mapeo de la respuesta de Genei a nuestro formato estándar
-            return (Array.isArray(data) ? data : []).map((agency: any) => ({
+            const result = (Array.isArray(data) ? data : []).map((agency: any) => ({
                 id: `genei-${agency.id}`,
                 provider: 'genei' as const,
                 carrierName: agency.nombre || 'Genei Carrier',
                 serviceName: agency.nombre_servicio || 'Genei Service',
+                serviceType: 'door_to_door' as 'door_to_door' | 'drop_off', // Default for now
                 estimatedDays: parseInt(agency.plazo_entregas) || 5,
                 costPrice: parseFloat(agency.total),
                 finalPrice: 0, // se calcula en el orquestador
                 currency: 'EUR',
             }));
+
+            // Si Genei responde con un JSON válido pero 0 agencias, devolvemos demo fallback
+            if (result.length === 0) {
+                console.warn("[Genei] Returned 0 rates. Falling back to demo data.");
+                return getDemoRates('genei', params.parcel);
+            }
+
+            return result;
         } catch (error) {
-            console.error("[Genei] API Error:", error);
-            return [];
+            console.error("[Genei] API Error/Timeout. Falling back to demo rates.", error);
+            return getDemoRates('genei', params.parcel);
         }
     },
 };

@@ -60,6 +60,7 @@ export const packlinkAdapter: CarrierAdapter = {
                 provider: 'packlink' as const,
                 carrierName: service.carrier_name,
                 serviceName: service.name,
+                serviceType: 'drop_off', // Default packlink type mapped based on type
                 estimatedDays: parseInt(service.transit_time) || 5, // parses "1 DAYS" into 1
                 costPrice: service.price.total_price,
                 finalPrice: 0,

@@ -77,6 +77,7 @@ export const shippoAdapter: CarrierAdapter = {
                 provider: 'shippo' as const,
                 carrierName: rate.provider,
                 serviceName: rate.servicelevel.name,
+                serviceType: 'door_to_door', // shippo uses door to door usually
                 estimatedDays: rate.estimated_days || 5,
                 costPrice: parseFloat(rate.amount),
                 finalPrice: 0, // calculated by pricing engine

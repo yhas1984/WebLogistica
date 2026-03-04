@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-declare global {
+declare module 'react' {
     namespace JSX {
         interface IntrinsicElements {
             'gmpx-api-loader': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & { key?: string, 'solution-channel'?: string }, HTMLElement>;
