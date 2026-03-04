@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { approveManualPayment } from "@/actions/admin";
 import {
     DollarSign,
     TrendingUp,
@@ -239,8 +240,8 @@ export default async function AdminDashboardPage() {
                                     <tr
                                         key={shipment.id}
                                         className={`border-b border-white/[0.04] transition-colors ${isPending
-                                                ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.07]'
-                                                : 'hover:bg-white/[0.03]'
+                                            ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.07]'
+                                            : 'hover:bg-white/[0.03]'
                                             }`}
                                     >
                                         {/* ID / Date */}
@@ -319,12 +320,18 @@ export default async function AdminDashboardPage() {
                                         <td className="px-5 py-3.5 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 {isPending && (
-                                                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                                        bg-emerald-500/15 text-emerald-400 border border-emerald-500/25
-                                                        hover:bg-emerald-500/25 transition-all">
-                                                        <CheckCircle className="w-3 h-3" />
-                                                        Aprobar
-                                                    </button>
+                                                    <form action={approveManualPayment}>
+                                                        <input type="hidden" name="shipmentId" value={shipment.id} />
+                                                        <button
+                                                            type="submit"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                                                bg-emerald-500/15 text-emerald-400 border border-emerald-500/25
+                                                                hover:bg-emerald-500/25 transition-all cursor-pointer"
+                                                        >
+                                                            <CheckCircle className="w-3 h-3" />
+                                                            Aprobar
+                                                        </button>
+                                                    </form>
                                                 )}
                                                 {shipment.status === 'labels_generated' && shipment.label_url && (
                                                     <a
