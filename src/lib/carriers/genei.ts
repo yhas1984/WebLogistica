@@ -98,10 +98,24 @@ export const geneiAdapter: CarrierAdapter = {
 export async function getGeneiLabel(shipmentData: any) {
     const token = await getGeneiToken();
 
-    // Validamos los datos básicos para evitar errors 400
-    if (!shipmentData.origin_postal_code || !shipmentData.destination_postal_code) {
-        throw new Error("Missing required shipment addresses");
+    // Support both DB column formats: direct columns OR nested in origin_data/destination_data
+    const originPostalCode = shipmentData.origin_postal_code || shipmentData.origin_data?.postalCode;
+    const originCountry = shipmentData.origin_country || shipmentData.origin_data?.countryCode || 'ES';
+    const destPostalCode = shipmentData.destination_postal_code || shipmentData.destination_data?.postalCode;
+    const destCountry = shipmentData.destination_country || shipmentData.destination_data?.countryCode || 'ES';
+
+    if (!originPostalCode || !destPostalCode) {
+        throw new Error(`[Genei] Missing postal codes: origin=${originPostalCode}, dest=${destPostalCode}`);
     }
+
+    // Extract dimensions from shipment
+    const dimensions = shipmentData.dimensions || {};
+    const weight = dimensions.weight || shipmentData.weight || 1;
+    const length = dimensions.length || shipmentData.length || 30;
+    const width = dimensions.width || shipmentData.width || 20;
+    const height = dimensions.height || shipmentData.height || 15;
+
+    console.log(`[Genei] Creating shipment: ${originPostalCode} → ${destPostalCode}, rate: ${shipmentData.rate_id}`);
 
     const response = await fetch(`${GENEI_API_URL}/shipments`, {
         method: "POST",
@@ -110,32 +124,35 @@ export async function getGeneiLabel(shipmentData: any) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            remite_nombre: shipmentData.profiles?.full_name || "Remitente",
-            remite_direccion: "Central", // Debería de ser origin_address si existiese
-            cp_recogida: shipmentData.origin_postal_code,
-            pais_recogida: shipmentData.origin_country,
+            remite_nombre: shipmentData.origin_data?.name || "Remitente",
+            remite_direccion: shipmentData.origin_data?.address || "Central",
+            cp_recogida: originPostalCode,
+            pais_recogida: originCountry,
 
-            destina_nombre: "Destinatario",
-            destina_direccion: "Destino", // Debería de ser dest_address si existiese
-            cp_entrega: shipmentData.destination_postal_code,
-            pais_entrega: shipmentData.destination_country,
+            destina_nombre: shipmentData.destination_data?.name || "Destinatario",
+            destina_direccion: shipmentData.destination_data?.address || "Destino",
+            cp_entrega: destPostalCode,
+            pais_entrega: destCountry,
 
             bultos: [{
-                peso: shipmentData.weight,
-                largo: shipmentData.length,
-                ancho: shipmentData.width,
-                alto: shipmentData.height
+                peso: weight,
+                largo: length,
+                ancho: width,
+                alto: height
             }],
-            servicio: shipmentData.rate_id.replace("genei-", ""), // Sacamos la ID real
+            servicio: shipmentData.rate_id?.replace("genei-", ""),
             referencia: shipmentData.id
         }),
+        signal: AbortSignal.timeout(20000),
     });
 
     if (!response.ok) {
-        console.error("[Genei] Falló la creación del envío", await response.text());
-        throw new Error("Error comprando en Genei");
+        const errText = await response.text();
+        console.error("[Genei] Label purchase failed:", response.status, errText);
+        throw new Error(`Error comprando etiqueta en Genei: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`[Genei] Label purchased! Tracking: ${data.tracking_number}, PDF: ${data.label_url}`);
     return { tracking: data.tracking_number || `GNI-${Date.now()}`, pdf: data.label_url || null };
 }

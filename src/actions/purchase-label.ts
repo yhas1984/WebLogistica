@@ -9,6 +9,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getGeneiLabel } from '@/lib/carriers/genei';
 import { getShippoLabel } from '@/lib/carriers/shippo';
+import { getPacklinkLabel } from '@/lib/carriers/packlink';
 import { sendLabelEmail } from '@/lib/resend';
 
 export async function purchaseLabel(
@@ -53,9 +54,12 @@ export async function purchaseLabel(
                 }
 
             } else if (provider === 'packlink') {
-                // ── Packlink — TODO: integrar compra de labels ──
-                console.warn(`[purchaseLabel] Packlink label purchase not yet implemented. Shipment: ${shipmentId}`);
-                // Por ahora deja tracking genérico y sin PDF
+                // ── Packlink (MRW, GLS, Correos Express, etc.) ──
+                const result = await getPacklinkLabel(shipment);
+                if (result.tracking) tracking = result.tracking;
+                if (result.pdf) {
+                    labelUrl = await uploadLabelToStorage(supabase, shipmentId, result.pdf);
+                }
 
             } else {
                 console.warn(`[purchaseLabel] Unknown provider "${provider}" for shipment ${shipmentId}`);
