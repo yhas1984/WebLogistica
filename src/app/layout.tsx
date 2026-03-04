@@ -4,6 +4,7 @@ import './globals.css';
 import { createClient } from '@/lib/supabase/server';
 import { logout } from '@/actions/auth';
 import { LogOut } from 'lucide-react';
+import { ChatWidget } from '@/components/chat-widget';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -136,6 +137,7 @@ export default async function RootLayout({
             </div>
           </div>
         </footer>
+        <ChatWidget />
       </body>
     </html>
   );
