@@ -89,3 +89,74 @@ export const shippoAdapter: CarrierAdapter = {
         }
     },
 };
+
+// ── Label Purchase ──────────────────────────────────────────
+// POST https://api.goshippo.com/transactions/
+// Uses the rate object_id from the rates response to purchase a real label
+// ─────────────────────────────────────────────────────────────
+
+interface ShippoTransaction {
+    object_id: string;
+    status: 'SUCCESS' | 'QUEUED' | 'ERROR';
+    tracking_number: string;
+    tracking_url_provider: string;
+    label_url: string;
+    eta: string;
+    messages: Array<{ text: string }>;
+}
+
+export async function getShippoLabel(shipmentData: {
+    rate_id: string;
+    id: string;
+    [key: string]: any;
+}): Promise<{ tracking: string; pdf: string | null }> {
+    const apiKey = process.env.SHIPPO_API_KEY;
+
+    if (!apiKey) {
+        throw new Error('[Shippo] No API key configured (SHIPPO_API_KEY)');
+    }
+
+    // Extract the real Shippo rate object_id from our stored rate_id format: "shippo-{object_id}"
+    const rateObjectId = shipmentData.rate_id?.replace('shippo-', '');
+
+    if (!rateObjectId) {
+        throw new Error(`[Shippo] Invalid rate_id: ${shipmentData.rate_id}`);
+    }
+
+    console.log(`[Shippo] Purchasing label for rate ${rateObjectId}, shipment ${shipmentData.id}`);
+
+    const response = await fetch(`${SHIPPO_API_URL}/transactions/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `ShippoToken ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            rate: rateObjectId,
+            label_file_type: 'PDF',
+            async: false,
+        }),
+        signal: AbortSignal.timeout(30000), // 30s — label purchase can be slow
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        console.error('[Shippo] Label purchase HTTP error:', response.status, errText);
+        throw new Error(`Shippo label purchase failed: ${response.status}`);
+    }
+
+    const transaction: ShippoTransaction = await response.json();
+
+    if (transaction.status === 'ERROR') {
+        const errorMsg = transaction.messages?.map(m => m.text).join(', ') || 'Unknown error';
+        console.error('[Shippo] Transaction error:', errorMsg);
+        throw new Error(`Shippo transaction error: ${errorMsg}`);
+    }
+
+    console.log(`[Shippo] Label purchased! Tracking: ${transaction.tracking_number}, URL: ${transaction.label_url}`);
+
+    return {
+        tracking: transaction.tracking_number || `SHP-${Date.now()}`,
+        pdf: transaction.label_url || null,
+    };
+}

@@ -2,11 +2,13 @@
 
 // ============================================================
 // Server Action: Purchase Shipping Label
-// Called after successful Stripe payment
+// Called after successful Stripe payment or manual admin approval
+// Supports: Genei, Shippo (UPS, FedEx, DHL, SEUR, etc.)
 // ============================================================
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { getGeneiLabel } from '@/lib/carriers/genei';
+import { getShippoLabel } from '@/lib/carriers/shippo';
 import { sendLabelEmail } from '@/lib/resend';
 
 export async function purchaseLabel(
@@ -29,45 +31,39 @@ export async function purchaseLabel(
         let tracking = `WL${Date.now().toString(36).toUpperCase()}`;
         let labelUrl = '';
 
-        // 2. Comprar según provider con Alerta de Seguridad (Try-Catch robusto)
+        // 2. Comprar etiqueta según el provider
         try {
-            if (shipment.api_provider === 'genei') {
+            const provider = shipment.api_provider;
+            console.log(`[purchaseLabel] Provider: ${provider}, shipment: ${shipmentId}`);
+
+            if (provider === 'genei') {
+                // ── Genei ─────────────────────────────────────
                 const result = await getGeneiLabel(shipment);
                 if (result.tracking) tracking = result.tracking;
-
                 if (result.pdf) {
-                    // 3. Resiliencia: Almacenamiento de Etiquetas en Storage (Supabase)
-                    try {
-                        const pdfResponse = await fetch(result.pdf);
-                        if (!pdfResponse.ok) throw new Error('Could not fetch PDF from Genei');
-                        const arrayBuffer = await pdfResponse.arrayBuffer();
-                        const buffer = Buffer.from(arrayBuffer);
-
-                        const fileName = `${shipmentId}_${Date.now()}.pdf`;
-                        const { error: uploadError } = await supabase.storage
-                            .from('shipping_labels')
-                            .upload(fileName, buffer, {
-                                contentType: 'application/pdf',
-                                upsert: true,
-                            });
-
-                        if (uploadError) throw uploadError;
-
-                        // Retrieve the permanent URL from the bucket
-                        const { data: publicUrlData } = supabase.storage
-                            .from('shipping_labels')
-                            .getPublicUrl(fileName);
-
-                        labelUrl = publicUrlData.publicUrl;
-                    } catch (uploadObjError) {
-                        console.error('[purchaseLabel] Error uploading to Supabase, falling back to Carrier URL', uploadObjError);
-                        labelUrl = result.pdf;
-                    }
+                    labelUrl = await uploadLabelToStorage(supabase, shipmentId, result.pdf);
                 }
+
+            } else if (provider === 'shippo') {
+                // ── Shippo (UPS, FedEx, DHL, SEUR, etc.) ─────
+                const result = await getShippoLabel(shipment);
+                if (result.tracking) tracking = result.tracking;
+                if (result.pdf) {
+                    labelUrl = await uploadLabelToStorage(supabase, shipmentId, result.pdf);
+                }
+
+            } else if (provider === 'packlink') {
+                // ── Packlink — TODO: integrar compra de labels ──
+                console.warn(`[purchaseLabel] Packlink label purchase not yet implemented. Shipment: ${shipmentId}`);
+                // Por ahora deja tracking genérico y sin PDF
+
+            } else {
+                console.warn(`[purchaseLabel] Unknown provider "${provider}" for shipment ${shipmentId}`);
             }
+
         } catch (labelError) {
             console.error('[purchaseLabel] Failed to generate/fetch label from Carrier:', labelError);
-            // Fallback status to manual intervention if label fails but money was paid
+            // Fallback: marcar como intervención manual si la etiqueta falla pero el dinero se cobró
             await supabase.from('shipments')
                 .update({ status: 'manual_intervention_required', updated_at: new Date().toISOString() })
                 .eq('id', shipmentId);
@@ -75,11 +71,11 @@ export async function purchaseLabel(
             throw new Error('Generación de etiqueta fallida, requiere intervención manual.');
         }
 
-        // Update shipment record
+        // 3. Actualizar envío con tracking y label
         const { error: updateError } = await supabase
             .from('shipments')
             .update({
-                status: 'labels_generated', // Status indicating completion of label generation
+                status: 'labels_generated',
                 label_url: labelUrl,
                 tracking_number: tracking,
                 updated_at: new Date().toISOString(),
@@ -90,7 +86,9 @@ export async function purchaseLabel(
             throw updateError;
         }
 
-        // 4. Send Confirmation Email via Resend
+        console.log(`[purchaseLabel] Success! Tracking: ${tracking}, Label: ${labelUrl}`);
+
+        // 4. Enviar email de confirmación via Resend
         try {
             if (shipment.user_id) {
                 const { data: userData, error: userError } = await supabase.auth.admin.getUserById(shipment.user_id);
@@ -108,12 +106,45 @@ export async function purchaseLabel(
             }
         } catch (emailError) {
             console.error('[purchaseLabel] Error sending confirmation email:', emailError);
-            // Non-critical, do not fail label generation
+            // No-critical, no falla la generación de etiqueta
         }
 
         return { success: true, labelUrl };
     } catch (error) {
         console.error('[purchaseLabel] Error:', error);
         return { success: false, error: 'No se pudo generar la etiqueta' };
+    }
+}
+
+// ── Helper: Upload label PDF to Supabase Storage ────────────
+async function uploadLabelToStorage(
+    supabase: Awaited<ReturnType<typeof createServiceClient>>,
+    shipmentId: string,
+    pdfUrl: string
+): Promise<string> {
+    try {
+        const pdfResponse = await fetch(pdfUrl);
+        if (!pdfResponse.ok) throw new Error(`Could not fetch PDF: ${pdfResponse.status}`);
+        const arrayBuffer = await pdfResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const fileName = `${shipmentId}_${Date.now()}.pdf`;
+        const { error: uploadError } = await supabase.storage
+            .from('shipping_labels')
+            .upload(fileName, buffer, {
+                contentType: 'application/pdf',
+                upsert: true,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+            .from('shipping_labels')
+            .getPublicUrl(fileName);
+
+        return publicUrlData.publicUrl;
+    } catch (uploadError) {
+        console.error('[purchaseLabel] Error uploading to Supabase Storage, using carrier URL:', uploadError);
+        return pdfUrl; // Fallback: usar la URL original del carrier
     }
 }
