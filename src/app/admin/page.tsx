@@ -12,9 +12,9 @@ import {
     AlertCircle,
     FileText,
     CheckCircle,
-    Trash2,
     Save
 } from "lucide-react";
+import { DeleteShipmentButton } from "@/components/admin/delete-shipment-button";
 
 export const revalidate = 0; // Siempre datos en vivo, sin caché
 
@@ -373,17 +373,9 @@ export default async function AdminDashboardPage() {
                                                     </a>
                                                 )}
 
-                                                <form action={deleteShipmentAdmin} onSubmit={(e) => {
-                                                    if (!confirm('¿Seguro que deseas eliminar este envío? Esta acción no se puede deshacer.')) e.preventDefault();
-                                                }}>
+                                                <form action={deleteShipmentAdmin}>
                                                     <input type="hidden" name="shipmentId" value={shipment.id} />
-                                                    <button
-                                                        type="submit"
-                                                        title="Eliminar Envío"
-                                                        className="p-1.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 transition-all cursor-pointer"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    <DeleteShipmentButton />
                                                 </form>
                                             </div>
                                         </td>
