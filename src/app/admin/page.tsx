@@ -18,7 +18,6 @@ interface ShipmentRow {
     origin_data: { city?: string; postalCode?: string } | null;
     destination_data: { city?: string; postalCode?: string } | null;
     user_id: string;
-    users: { email?: string; raw_user_meta_data?: Record<string, any> } | { email?: string; raw_user_meta_data?: Record<string, any> }[] | null;
 }
 
 // ── Status Badge ────────────────────────────────────────────
@@ -94,10 +93,7 @@ export default async function AdminDashboardPage() {
     // 3. Fetch all real shipments (exclude pending_payment)
     const { data: shipments, error } = await supabaseAdmin
         .from("shipments")
-        .select(`
-      *,
-      users:user_id (email, raw_user_meta_data)
-    `)
+        .select("*")
         .neq("status", "pending_payment")
         .order("created_at", { ascending: false });
 
@@ -192,9 +188,7 @@ export default async function AdminDashboardPage() {
                                 const profitMargin = shipment.final_price && shipment.final_price > 0
                                     ? (profit / shipment.final_price) * 100
                                     : 0;
-                                const userEmail = Array.isArray(shipment.users)
-                                    ? shipment.users[0]?.email
-                                    : shipment.users?.email;
+                                const userId = shipment.user_id;
 
                                 return (
                                     <tr
@@ -219,8 +213,8 @@ export default async function AdminDashboardPage() {
                                             <div className="font-semibold text-white/80">
                                                 {shipment.origin_data?.city || '—'} → {shipment.destination_data?.city || '—'}
                                             </div>
-                                            <div className="text-[11px] text-white/30 truncate max-w-[160px]">
-                                                {userEmail || '—'}
+                                            <div className="text-[10px] text-white/25 font-mono truncate max-w-[140px]">
+                                                {userId?.slice(0, 8) || '—'}
                                             </div>
                                         </td>
 
