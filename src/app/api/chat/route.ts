@@ -117,10 +117,10 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ reply });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Chat Error:", error);
         return NextResponse.json(
-            { reply: "Lo siento, mi sistema está en mantenimiento. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/" },
+            { reply: `Error de Sistema: ${error.message || 'Error desconocido'}. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/` },
             { status: 200 }
         );
     }
