@@ -10,7 +10,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getOptimizedRates } from '@/lib/logistics-orchestrator';
 import type { RateResultsData } from '@/types';
 
-export const maxDuration = 60; // Permitir más tiempo de ejecución en Vercel
+const maxDuration = 60; // Permitir más tiempo de ejecución en Vercel (Variable interna)
 
 const quoteSchema = z.object({
     originPostalCode: z.string().min(3, 'Código postal de origen requerido'),
