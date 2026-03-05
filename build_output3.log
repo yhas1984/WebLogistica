@@ -1,0 +1,38 @@
+
+> weblogistica@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.2s
+  Running TypeScript ...
+  Collecting page data using 23 workers ...
+  Generating static pages using 23 workers (0/13) ...
+  Generating static pages using 23 workers (3/13) 
+  Generating static pages using 23 workers (6/13) 
+  Generating static pages using 23 workers (9/13) 
+✓ Generating static pages using 23 workers (13/13) in 260.7ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /api/tracking/[id]
+├ ƒ /api/webhooks/stripe
+├ ƒ /checkout/cancel
+├ ƒ /checkout/success
+├ ƒ /dashboard
+├ ƒ /forgot-password
+├ ƒ /login
+├ ƒ /register
+├ ƒ /reset-password
+├ ƒ /tracking
+└ ƒ /tracking/[id]
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+

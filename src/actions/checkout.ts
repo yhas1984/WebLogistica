@@ -3,6 +3,8 @@
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
 
 export async function createCheckoutSession(rateId: string, rateData: any, origin: any, destination: any) {
     const supabase = await createClient();
@@ -46,7 +48,7 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
             .select()
             .single();
 
-        if (result1.error?.code === 'PGRST204') {
+        if (result1.error?.code === '42703' || result1.error?.message?.includes('column')) {
             // Columns don't exist yet, insert without them
             const result2 = await supabase
                 .from('shipments')
@@ -81,8 +83,8 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
                 },
             ],
             mode: 'payment',
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?cancelled=true`,
+            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/cancel`,
             metadata: {
                 shipmentId: shipment.id,
                 userId: user.id,
@@ -144,8 +146,8 @@ export async function continueCheckoutSession(shipmentId: string) {
                 },
             ],
             mode: 'payment',
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?cancelled=true`,
+            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/cancel`,
             metadata: {
                 shipmentId: shipment.id,
                 userId: user.id,
@@ -164,9 +166,7 @@ export async function continueCheckoutSession(shipmentId: string) {
     }
 }
 
-import { revalidatePath } from 'next/cache';
-
-import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
+// NOTE: revalidatePath and createSupabaseAdminClient imported at top of file
 
 export async function deleteShipment(shipmentId: string) {
     const supabase = await createClient();
