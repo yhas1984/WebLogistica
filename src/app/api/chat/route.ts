@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         ).join("\n") || "";
 
         // 3. CONFIGURAR IA CON EL PROMPT MAESTRO Y MEMORIA
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
         const systemPrompt = `
       Eres LogiBot, asistente virtual de LogiVelo (WebLogistica.com), una empresa de envíos y logística internacional.
       Tu tono debe ser profesional, amable y directo. Usa emojis ocasionalmente (📦, ✈️, 🚚).
@@ -83,10 +83,12 @@ export async function POST(req: Request) {
       8. Si preguntan cómo pagar: Aceptamos Bizum, Transferencia y Tarjeta vía Stripe en nuestra web.
     `;
 
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: message }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.0-flash",
+            systemInstruction: systemPrompt
         });
+
+        const result = await model.generateContent(message);
         const reply = result.response.text();
 
         // 4. GUARDAR EN EL HISTORIAL (Para memoria futura)
