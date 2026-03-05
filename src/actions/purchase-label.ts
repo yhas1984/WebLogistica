@@ -75,7 +75,21 @@ export async function purchaseLabel(
             throw new Error('Generación de etiqueta fallida, requiere intervención manual.');
         }
 
-        // 3. Actualizar envío con tracking y label
+        // 3. Validar que tenemos una etiqueta real antes de actualizar a 'labels_generated'
+        if (!labelUrl) {
+            console.error(`[purchaseLabel] Label URL is empty for shipment ${shipmentId}. Marking for manual intervention.`);
+            await supabase.from('shipments')
+                .update({
+                    status: 'manual_intervention_required',
+                    tracking_number: tracking, // Guardamos el tracking al menos
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', shipmentId);
+
+            return { success: false, error: 'El transportista no devolvió la etiqueta. Contacta con soporte.' };
+        }
+
+        // 4. Actualizar envío con tracking y label
         const { error: updateError } = await supabase
             .from('shipments')
             .update({

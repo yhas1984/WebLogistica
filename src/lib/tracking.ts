@@ -27,7 +27,7 @@ export interface TrackingCheckpoint {
 }
 
 /**
- * Get tracking info for a tracking number using native provider APIs (Shippo first)
+ * Get tracking info for a tracking number using native provider APIs
  */
 export async function getTracking(
     trackingNumber: string,
@@ -35,13 +35,38 @@ export async function getTracking(
 ): Promise<TrackingData | null> {
     const shippoApiKey = process.env.SHIPPO_API_KEY;
 
+    // ── Fallback para rastreos internos (GNI-...) ────────────────
+    if (trackingNumber.startsWith('GNI-') || trackingNumber.startsWith('WL')) {
+        return {
+            id: trackingNumber,
+            tracking_number: trackingNumber,
+            slug: carrierSlug || 'carrier',
+            tag: 'PRE_TRANSIT',
+            title: `Envío ${trackingNumber}`,
+            expected_delivery: null,
+            provider: 'internal',
+            checkpoints: [
+                {
+                    slug: carrierSlug || 'carrier',
+                    city: 'Almacén',
+                    created_at: new Date().toISOString(),
+                    message: 'La etiqueta ha sido generada y el paquete está a la espera de ser recogido.',
+                    tag: 'PRE_TRANSIT',
+                    checkpoint_time: new Date().toISOString(),
+                    location: 'Origen'
+                }
+            ]
+        };
+    }
+
     if (!shippoApiKey) {
         console.warn('[Tracking] No API key configured');
-        throw new Error('No API key configured for Shippo tracking');
+        return null;
     }
 
     try {
-        // Default to checking Shippo API for tracking
+        // En un escenario real, aquí bifurcaríamos según el carrier o proveedor
+        // Para simplificar, usamos Shippo como orquestador de rastreo universal
         const response = await fetch(
             `${SHIPPO_API_URL}/tracks/${carrierSlug}/${trackingNumber}`,
             {
@@ -54,8 +79,29 @@ export async function getTracking(
         );
 
         if (!response.ok) {
-            console.warn(`[Tracking] Shippo tracking failed, status: ${response.status}`);
-            return null; // Return null to indicate no tracking found
+            console.warn(`[Tracking] Shippo tracking failed, status: ${response.status} for ${trackingNumber}`);
+
+            // Si Shippo falla pero tenemos un tracking válido, devolvemos un estado básico
+            return {
+                id: trackingNumber,
+                tracking_number: trackingNumber,
+                slug: carrierSlug,
+                tag: 'UNKNOWN',
+                title: `Envío ${trackingNumber}`,
+                expected_delivery: null,
+                provider: 'fallback',
+                checkpoints: [
+                    {
+                        slug: carrierSlug,
+                        city: '',
+                        created_at: new Date().toISOString(),
+                        message: 'Información de rastreo no disponible de momento. Es posible que el paquete aún no haya sido escaneado.',
+                        tag: 'UNKNOWN',
+                        checkpoint_time: new Date().toISOString(),
+                        location: ''
+                    }
+                ]
+            };
         }
 
         const data = await response.json();
@@ -80,7 +126,7 @@ export async function getTracking(
         };
     } catch (error) {
         console.error('[Tracking] Get tracking failed:', error);
-        throw error;
+        return null;
     }
 }
 

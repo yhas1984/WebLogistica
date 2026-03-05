@@ -122,14 +122,14 @@ export const geneiAdapter: CarrierAdapter = {
             }));
 
             if (result.length === 0) {
-                console.warn("[Genei] Returned 0 rates. Falling back to demo data.");
-                return getDemoRates('genei', params.parcel);
+                console.warn("[Genei] Returned 0 rates. Body was:", JSON.stringify(data));
+                return []; // No devolvemos demo por defecto en producción si falla
             }
 
             return result;
         } catch (error) {
-            console.error("[Genei] API Error/Timeout. Falling back to demo rates.", error);
-            return getDemoRates('genei', params.parcel);
+            console.error("[Genei] API Error/Timeout:", error);
+            return [];
         }
     },
 };
@@ -196,10 +196,25 @@ export async function getGeneiLabel(shipmentData: any): Promise<{ tracking: stri
     }
 
     const data = await response.json();
-    console.log(`[Genei] Label purchased! Tracking: ${data.codigo_envio || data.tracking_number}, PDF: ${data.url_etiqueta || data.label_url}`);
+
+    // Genei v2 puede devolver { status: false, error: "..." } incluso con HTTP 200
+    if (data.status === false || (data.success === false)) {
+        console.error("[Genei] API responded with error body:", data);
+        throw new Error(data.error || data.message || "Error en la respuesta de Genei");
+    }
+
+    console.log(`[Genei] Response Data:`, JSON.stringify(data));
+
+    // Mapeo flexible de campos según diferentes versiones de la API v2
+    const tracking = data.codigo_envio || data.tracking_number || data.envio?.codigo_envio || data.envio?.tracking_number;
+    const pdf = data.url_etiqueta || data.label_url || data.envio?.url_etiqueta || data.envio?.label_url;
+
+    if (!tracking) {
+        console.warn("[Genei] No tracking number in response, using fallback.");
+    }
 
     return {
-        tracking: data.codigo_envio || data.tracking_number || `GNI-${Date.now()}`,
-        pdf: data.url_etiqueta || data.label_url || null
+        tracking: tracking || `GNI-${Date.now()}`,
+        pdf: pdf || null
     };
 }

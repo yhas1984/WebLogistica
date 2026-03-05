@@ -25,6 +25,12 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
         return { error: 'Debes iniciar sesión para realizar un envío.' };
     }
 
+    // Seguridad: Evitar que se compren tarifas de demostración
+    if (rateId.startsWith('demo-') || rateData.id?.startsWith('demo-')) {
+        console.error('[Stripe] Attempted to purchase a demo rate:', rateId);
+        return { error: 'No se pueden procesar pagos para tarifas de demostración. Por favor, realiza una nueva búsqueda y selecciona una tarifa real.' };
+    }
+
     let redirectUrl: string | null = null;
 
     try {
