@@ -97,8 +97,8 @@ export function ChatWidget() {
                         >
                             <div
                                 className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm my-1 ${msg.role === 'user'
-                                        ? 'bg-gradient-to-br from-blue-600/90 to-purple-600/90 text-white shadow-md'
-                                        : 'bg-white/10 text-white/90 border border-white/5'
+                                    ? 'bg-gradient-to-br from-blue-600/90 to-purple-600/90 text-white shadow-md'
+                                    : 'bg-white/10 text-white/90 border border-white/5'
                                     }`}
                                 style={{
                                     borderBottomRightRadius: msg.role === 'user' ? '4px' : '16px',
@@ -111,8 +111,12 @@ export function ChatWidget() {
                     ))}
                     {isLoading && (
                         <div className="flex justify-start">
-                            <div className="bg-white/10 text-white/90 border border-white/5 max-w-[80%] rounded-2xl px-4 py-3 text-sm rounded-bl-sm">
-                                <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                            <div className="bg-white/10 text-white/90 border border-white/5 max-w-[80%] rounded-2xl px-4 py-3.5 text-sm rounded-bl-sm">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
                             </div>
                         </div>
                     )}
