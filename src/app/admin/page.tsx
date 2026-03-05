@@ -12,13 +12,27 @@ import {
     AlertCircle,
     FileText,
     CheckCircle,
-    Save
+    Save,
+    MessageSquare,
+    Bot
 } from "lucide-react";
 import { DeleteShipmentButton } from "@/components/admin/delete-shipment-button";
 
 export const revalidate = 0; // Siempre datos en vivo, sin caché
 
 // ── Tipos auxiliares ────────────────────────────────────────
+interface SupportLogRow {
+    id: string;
+    channel: string;
+    sender_id: string;
+    sender_name: string | null;
+    message: string;
+    ai_response: string | null;
+    shipment_id: string | null;
+    resolved: boolean;
+    created_at: string;
+}
+
 interface ShipmentRow {
     id: string;
     created_at: string;
@@ -114,6 +128,13 @@ export default async function AdminDashboardPage() {
         .from("shipments")
         .select("*")
         .order("created_at", { ascending: false });
+
+    // Fetch support logs
+    const { data: supportLogs } = await supabaseAdmin
+        .from("support_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
 
     if (error) {
         console.error("Error cargando datos de admin:", error);
@@ -388,6 +409,71 @@ export default async function AdminDashboardPage() {
                                     <td colSpan={8} className="text-center py-12 text-white/30">
                                         <Package className="w-8 h-8 mx-auto mb-3 text-white/15" />
                                         Aún no hay operaciones registradas. ¡Pronto llegará el primer cliente!
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* ── Support Logs Table ────────────────────────────── */}
+            <div className="bento-card !p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-2">
+                    <Bot className="w-5 h-5 text-purple-400" />
+                    <h2 className="text-lg font-semibold text-white">Soporte IA Multicanal</h2>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-[11px] text-white/40 uppercase tracking-wider border-b border-white/[0.06]">
+                                <th className="px-5 py-3 text-left font-medium">Fecha</th>
+                                <th className="px-5 py-3 text-left font-medium">Canal / Usuario</th>
+                                <th className="px-5 py-3 text-left font-medium">Mensaje Original</th>
+                                <th className="px-5 py-3 text-left font-medium">Respuesta IA</th>
+                                <th className="px-5 py-3 text-center font-medium">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(supportLogs || []).map((log: SupportLogRow) => (
+                                <tr
+                                    key={log.id}
+                                    className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors"
+                                >
+                                    <td className="px-5 py-3.5 align-top">
+                                        <div className="text-[10px] text-white/40">
+                                            {new Date(log.created_at).toLocaleDateString('es-ES', {
+                                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                            })}
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3.5 align-top">
+                                        <div className="flex items-center gap-1.5 font-medium text-white/80">
+                                            {log.channel === 'whatsapp' ? <MessageSquare className="w-3 h-3 text-emerald-400" /> : <Bot className="w-3 h-3 text-blue-400" />}
+                                            <span className="capitalize">{log.channel}</span>
+                                        </div>
+                                        <div className="text-[10px] text-white/40 mt-0.5">
+                                            {log.sender_name ? `${log.sender_name} (${log.sender_id})` : log.sender_id}
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3.5 align-top">
+                                        <p className="text-xs text-white/70 line-clamp-3" title={log.message}>{log.message}</p>
+                                    </td>
+                                    <td className="px-5 py-3.5 align-top">
+                                        <p className="text-xs text-blue-200/70 line-clamp-3" title={log.ai_response || ''}>{log.ai_response || '...'}</p>
+                                    </td>
+                                    <td className="px-5 py-3.5 text-center align-top">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider ${log.resolved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                                            {log.resolved ? 'Resuelto' : 'Pendiente'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                            {(!supportLogs || supportLogs.length === 0) && (
+                                <tr>
+                                    <td colSpan={5} className="text-center py-8 text-white/30">
+                                        <Bot className="w-6 h-6 mx-auto mb-2 text-white/15" />
+                                        No hay registros de soporte IA todavía.
                                     </td>
                                 </tr>
                             )}

@@ -10,15 +10,17 @@ import { getDemoRates } from './types';
 const GENEI_API_URL = 'https://apiv2.genei.es/api/v2';
 
 // ── Sistema de caché de Token ───────────────────────────────
-// El token de Genei dura 15 días. Lo cacheamos 14 días en memoria
-// para evitar que bloqueen la IP por exceso de peticiones de login.
-let cachedToken: string | null = null;
-let tokenExpiresAt: number = 0;
+// Usamos globalThis para entornos Serverless donde el estado puede borrarse pero global persiste algo más
+const globalForGenei = globalThis as unknown as { cachedToken: string | null, tokenExpiresAt: number };
+if (typeof globalForGenei.cachedToken === 'undefined') {
+    globalForGenei.cachedToken = null;
+    globalForGenei.tokenExpiresAt = 0;
+}
 
 async function getGeneiToken(): Promise<string> {
     // Si tenemos un token válido (con margen de seguridad de 1 hora), lo reusamos
-    if (cachedToken && Date.now() < tokenExpiresAt - 3600000) {
-        return cachedToken;
+    if (globalForGenei.cachedToken && Date.now() < globalForGenei.tokenExpiresAt - 3600000) {
+        return globalForGenei.cachedToken;
     }
 
     // Primero intentar con API key directa (si existe)
@@ -44,18 +46,18 @@ async function getGeneiToken(): Promise<string> {
         }
 
         const data = await response.json();
-        cachedToken = data.token;
+        globalForGenei.cachedToken = data.token;
         // Cacheamos 14 días (en milisegundos)
-        tokenExpiresAt = Date.now() + (14 * 24 * 60 * 60 * 1000);
+        globalForGenei.tokenExpiresAt = Date.now() + (14 * 24 * 60 * 60 * 1000);
         console.log('[Genei] Token cached successfully (14 days)');
-        return cachedToken!;
+        return globalForGenei.cachedToken!;
     }
 
     // Fallback: usar API key directa del .env
     if (directKey) {
-        cachedToken = directKey;
-        tokenExpiresAt = Date.now() + (24 * 60 * 60 * 1000); // 1 día de caché
-        return cachedToken;
+        globalForGenei.cachedToken = directKey;
+        globalForGenei.tokenExpiresAt = Date.now() + (24 * 60 * 60 * 1000); // 1 día de caché
+        return globalForGenei.cachedToken;
     }
 
     throw new Error("[Genei] Missing auth: set GENEI_EMAIL+GENEI_PASSWORD or GENEI_API_KEY");
@@ -98,8 +100,8 @@ export const geneiAdapter: CarrierAdapter = {
 
                 // Si el error es 401, invalidar token cacheado
                 if (response.status === 401) {
-                    cachedToken = null;
-                    tokenExpiresAt = 0;
+                    globalForGenei.cachedToken = null;
+                    globalForGenei.tokenExpiresAt = 0;
                     console.warn('[Genei] Token invalidated, will re-auth on next request');
                 }
                 return getDemoRates('genei', params.parcel);
@@ -185,8 +187,8 @@ export async function getGeneiLabel(shipmentData: any): Promise<{ tracking: stri
     if (!response.ok) {
         // Si 401, invalidar token
         if (response.status === 401) {
-            cachedToken = null;
-            tokenExpiresAt = 0;
+            globalForGenei.cachedToken = null;
+            globalForGenei.tokenExpiresAt = 0;
         }
         const errText = await response.text();
         console.error("[Genei] Label purchase failed:", response.status, errText);

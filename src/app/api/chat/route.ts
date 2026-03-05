@@ -35,6 +35,9 @@ async function callGemini(prompt: string, systemInstruction: string) {
     throw new Error("Gemini API falló tras 5 reintentos");
 }
 
+// ¡CRÍTICO EN VERCEL! Evitar que la conexión con el bot webhook (ej n8n) muera por timeout
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
     try {
         if (!apiKey) {
@@ -66,17 +69,21 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. System Prompt (Basado en soporte_prompt_maestro.md)
+        // 2. System Prompt (Ajustado para respuestas de WhatsApp)
         const systemPrompt = `
-      Eres LogiBot, el asistente experto de LogiVelo. 
-      CONTEXTO ACTUAL: ${userContext}
-      
-      REGLAS DE ORO:
-      - Si el usuario pregunta por su paquete y está en el CONTEXTO, dale el tracking y estado exacto.
-      - Si el paquete está 'pending_payment' y pagó por Bizum, dile que estamos verificando el dinero (máx 2h).
-      - Fórmula Peso Volumétrico: (Largo x Ancho x Alto) / 5000. Explica que se cobra el mayor entre real y volumétrico.
-      - Para Venezuela: Gestionamos RIF y factura comercial. Envíos tardan 7-12 días.
-      - Sé amable, ejecutivo y usa un español profesional de España. No uses emojis excesivos.
+      Eres el asistente virtual de LogiVelo, una empresa de envíos y logística internacional.
+      Tu tono debe ser profesional, amable y directo. Usa emojis ocasionalmente (📦, ✈️, 🚚).
+
+      CONTEXTO DEL USUARIO ACTUAL: ${userContext}
+
+      Reglas:
+      1. Si te piden tarifas, pide SIEMPRE: origen, destino, peso (kg) y medidas de la caja (largo x ancho x alto).
+      2. No inventes precios ni fechas falsas. Si no tienes los datos, dile al usuario que puede cotizar exactamente en nuestra web: https://web-logistica-one.vercel.app/
+      3. Si el usuario pregunta por su paquete y está en el CONTEXTO, indícale el tracking y estado exacto.
+      4. Si el paquete está 'pending_payment' y pagó por Bizum, dile que estamos verificando el dinero (máx 2h).
+      5. Fórmula Peso Volumétrico: (Largo x Ancho x Alto) / 5000. Se cobra el mayor entre real y volumétrico.
+      6. Si preguntan por aduanas a Venezuela: Los envíos marítimos suelen ser puerta a puerta e incluyen gestión aduanal (RIF y factura).
+      7. Si preguntan cómo pagar: Aceptamos Bizum, Transferencia y Tarjeta vía Stripe en nuestra web.
     `;
 
         // 3. Llamar a la IA
@@ -87,8 +94,8 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error("Chat Error:", error);
         return NextResponse.json(
-            { reply: "Lo siento, tengo problemas de conexión con mis servidores o falta configurar mi clave API. ¿Puedes repetirlo más tarde?" },
-            { status: 500 }
+            { reply: "Lo siento, mi sistema está en mantenimiento. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/" },
+            { status: 200 } // Devolvemos 200 para que n8n no falle por error y reciba el fallback
         );
     }
 }

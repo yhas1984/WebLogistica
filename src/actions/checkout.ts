@@ -6,6 +6,17 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
 
+// Helper dinámico para Vercel: Evita errores 400 de Stripe por URLs mal formadas
+const getBaseUrl = () => {
+    if (process.env.NEXT_PUBLIC_BASE_URL) {
+        return process.env.NEXT_PUBLIC_BASE_URL;
+    }
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    return 'http://localhost:3000';
+};
+
 export async function createCheckoutSession(rateId: string, rateData: any, origin: any, destination: any) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -83,8 +94,8 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
                 },
             ],
             mode: 'payment',
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/cancel`,
+            success_url: `${getBaseUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
+            cancel_url: `${getBaseUrl()}/checkout/cancel`,
             metadata: {
                 shipmentId: shipment.id,
                 userId: user.id,
@@ -146,8 +157,8 @@ export async function continueCheckoutSession(shipmentId: string) {
                 },
             ],
             mode: 'payment',
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/cancel`,
+            success_url: `${getBaseUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}&shipment_id=${shipment.id}`,
+            cancel_url: `${getBaseUrl()}/checkout/cancel`,
             metadata: {
                 shipmentId: shipment.id,
                 userId: user.id,

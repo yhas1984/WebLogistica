@@ -25,43 +25,6 @@ export const shippoAdapter: CarrierAdapter = {
         try {
             const headers = getHeaders();
             const isInternational = params.origin.country !== params.destination.country;
-            let customsDeclarationId: string | null = null;
-
-            // ── Aduanas para envíos internacionales ─────────────
-            if (isInternational) {
-                try {
-                    const customsResponse = await fetch(`${SHIPPO_API_URL}/customs/declarations/`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({
-                            certify: true,
-                            certifier: "WebLogistica System",
-                            items: [{
-                                description: "General Merchandise",
-                                quantity: 1,
-                                net_weight: String(params.parcel.billableWeight),
-                                mass_unit: "kg",
-                                value_amount: "50.00",
-                                value_currency: "EUR",
-                                origin_country: params.origin.country
-                            }],
-                            non_delivery_option: "RETURN",
-                            contents_type: "MERCHANDISE"
-                        }),
-                        signal: AbortSignal.timeout(10000),
-                    });
-
-                    if (customsResponse.ok) {
-                        const customsData = await customsResponse.json();
-                        customsDeclarationId = customsData.object_id;
-                        console.log(`[Shippo] Customs declaration created: ${customsDeclarationId}`);
-                    } else {
-                        console.warn('[Shippo] Could not create customs declaration:', await customsResponse.text());
-                    }
-                } catch (customsErr) {
-                    console.warn('[Shippo] Customs declaration creation failed:', customsErr);
-                }
-            }
 
             // ── Crear Shipment para obtener tarifas ─────────────
             const payload: Record<string, any> = {
@@ -94,8 +57,23 @@ export const shippoAdapter: CarrierAdapter = {
                 async: false,
             };
 
-            if (customsDeclarationId) {
-                payload.customs_declaration = customsDeclarationId;
+            // ── Aduanas integradas para envíos internacionales ─────────────
+            if (isInternational) {
+                payload.customs_declaration = {
+                    certify: true,
+                    certifier: "WebLogistica System",
+                    items: [{
+                        description: "General Merchandise",
+                        quantity: 1,
+                        net_weight: String(params.parcel.billableWeight),
+                        mass_unit: "kg",
+                        value_amount: "50.00",
+                        value_currency: "EUR",
+                        origin_country: params.origin.country
+                    }],
+                    non_delivery_option: "RETURN",
+                    contents_type: "MERCHANDISE"
+                };
             }
 
             const response = await fetch(`${SHIPPO_API_URL}/shipments/`, {
