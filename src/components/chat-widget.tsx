@@ -35,10 +35,21 @@ export function ChatWidget() {
         setIsLoading(true);
 
         try {
+            // Obtener o generar sessionId persistente
+            let sessionId = localStorage.getItem('chat_session_id');
+            if (!sessionId) {
+                sessionId = crypto.randomUUID();
+                localStorage.setItem('chat_session_id', sessionId);
+            }
+
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMessage }),
+                body: JSON.stringify({
+                    message: userMessage,
+                    sessionId: sessionId,
+                    source: 'web'
+                }),
             });
 
             const data = await res.json();
