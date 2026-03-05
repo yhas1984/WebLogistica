@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("Chat Error:", error);
         return NextResponse.json(
-            { reply: `Error de Sistema: ${error.message || 'Error desconocido'}. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/` },
+            { reply: `(V2 - Diagnóstico) Error de Sistema: ${error.message || 'Error desconocido'}. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/` },
             { status: 200 }
         );
     }
