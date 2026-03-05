@@ -1,34 +1,32 @@
 // ============================================================
-// Packlink PRO Carrier Adapter
-// API: POST https://apisandbox.packlink.com/v1/services
-// Auth: Authorization: <API_KEY>
+// Packlink PRO Carrier Adapter (Production)
+// ✅ Exact API format for dimensions (numbers, not strings)
+// ✅ Proper collection_type mapping
+// ✅ Label retrieval with retry polling
 // ============================================================
 
 import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
-import { getDemoRates } from './types';
 
 const PACKLINK_API_URL = 'https://api.packlink.com/v1';
 
-interface PacklinkService {
-    id: number;
-    carrier_name: string;
-    name: string;
-    price: { total_price: number; currency: string };
-    transit_time: string; // e.g., "1 DAYS"
+function getHeaders() {
+    const apiKey = process.env.PACKLINK_API_KEY;
+    if (!apiKey) throw new Error('[Packlink] PACKLINK_API_KEY not configured');
+    return {
+        'Authorization': apiKey,
+        'Content-Type': 'application/json',
+    };
 }
 
+// ── Rate Fetching ───────────────────────────────────────────
 export const packlinkAdapter: CarrierAdapter = {
     provider: 'packlink',
 
     async getRates(params: CarrierRateRequest): Promise<CarrierRate[]> {
-        const apiKey = process.env.PACKLINK_API_KEY;
-
-        if (!apiKey) {
-            console.warn('[Packlink] No API key configured');
-            return [];
-        }
-
         try {
+            const headers = getHeaders();
+
+            // Packlink requires exact number types for package dimensions
             const queryParams = new URLSearchParams({
                 'from[zip]': params.origin.postalCode,
                 'from[country]': params.origin.country,
@@ -42,29 +40,35 @@ export const packlinkAdapter: CarrierAdapter = {
 
             const response = await fetch(`${PACKLINK_API_URL}/services?${queryParams}`, {
                 method: 'GET',
-                headers: {
-                    'Authorization': apiKey,
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 signal: AbortSignal.timeout(15000),
             });
 
             if (!response.ok) {
-                throw new Error(`Packlink API error: ${response.status} ${response.statusText}`);
+                const errText = await response.text();
+                console.error('[Packlink] API error:', response.status, errText);
+                return [];
             }
 
-            const data: PacklinkService[] = await response.json();
+            const data = await response.json();
 
-            return data.map((service) => ({
+            if (!Array.isArray(data)) {
+                console.warn('[Packlink] Unexpected response format:', typeof data);
+                return [];
+            }
+
+            return data.map((service: any) => ({
                 id: `packlink-${service.id}`,
                 provider: 'packlink' as const,
                 carrierName: service.carrier_name,
                 serviceName: service.name,
-                serviceType: 'drop_off', // Default packlink type mapped based on type
-                estimatedDays: parseInt(service.transit_time) || 5, // parses "1 DAYS" into 1
-                costPrice: service.price.total_price,
+                serviceType: (service.collection_type === 'drop_off' ? 'drop_off' : 'door_to_door') as 'door_to_door' | 'drop_off',
+                estimatedDays: parseInt(service.transit_time) || 5,
+                costPrice: typeof service.price === 'object'
+                    ? parseFloat(service.price.total_price)
+                    : parseFloat(service.price),
                 finalPrice: 0,
-                currency: service.price.currency || 'EUR',
+                currency: (typeof service.price === 'object' ? service.price.currency : 'EUR') || 'EUR',
             }));
         } catch (error) {
             console.error('[Packlink] Rate fetch failed:', error);
@@ -74,10 +78,6 @@ export const packlinkAdapter: CarrierAdapter = {
 };
 
 // ── Label Purchase ──────────────────────────────────────────
-// 1. POST /v1/shipments — create the shipment order
-// 2. GET /v1/shipments/{reference}/labels — retrieve PDFs
-// ─────────────────────────────────────────────────────────────
-
 export async function getPacklinkLabel(shipmentData: {
     id: string;
     rate_id: string;
@@ -88,13 +88,10 @@ export async function getPacklinkLabel(shipmentData: {
     destination_postal_code?: string;
     destination_country?: string;
     dimensions?: { weight?: number; length?: number; width?: number; height?: number };
+    final_price?: number;
     [key: string]: any;
 }): Promise<{ tracking: string; pdf: string | null }> {
-    const apiKey = process.env.PACKLINK_API_KEY;
-
-    if (!apiKey) {
-        throw new Error('[Packlink] No API key configured (PACKLINK_API_KEY)');
-    }
+    const headers = getHeaders();
 
     // Resolve fields from both DB formats
     const originZip = shipmentData.origin_postal_code || shipmentData.origin_data?.postalCode || '';
@@ -105,10 +102,11 @@ export async function getPacklinkLabel(shipmentData: {
     const destCity = shipmentData.destination_data?.city || 'Madrid';
 
     const dimensions = shipmentData.dimensions || {};
-    const weight = dimensions.weight || 1;
-    const length = dimensions.length || 30;
-    const width = dimensions.width || 20;
-    const height = dimensions.height || 15;
+    // Packlink requires numbers (not strings) for package dimensions
+    const weight = Number(dimensions.weight) || 1;
+    const length = Number(dimensions.length) || 30;
+    const width = Number(dimensions.width) || 20;
+    const height = Number(dimensions.height) || 15;
 
     // Extract real Packlink service ID from our rate_id format: "packlink-{service_id}"
     const serviceId = shipmentData.rate_id?.replace('packlink-', '');
@@ -122,10 +120,7 @@ export async function getPacklinkLabel(shipmentData: {
     // Step 1: Create the shipment draft
     const createResponse = await fetch(`${PACKLINK_API_URL}/shipments`, {
         method: 'POST',
-        headers: {
-            'Authorization': apiKey,
-            'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
             from: {
                 country: originCountry,
@@ -133,9 +128,9 @@ export async function getPacklinkLabel(shipmentData: {
                 city: originCity,
                 name: shipmentData.origin_data?.name || 'Remitente',
                 surname: 'WebLogistica',
-                street: shipmentData.origin_data?.address || 'Calle Principal 1',
+                street1: shipmentData.origin_data?.address || 'Calle Principal 1',
                 phone: shipmentData.origin_data?.phone || '600000000',
-                email: shipmentData.origin_data?.email || 'envios@weblogistica.com',
+                email: shipmentData.origin_data?.email || process.env.ADMIN_EMAIL || 'envios@weblogistica.com',
             },
             to: {
                 country: destCountry,
@@ -143,7 +138,7 @@ export async function getPacklinkLabel(shipmentData: {
                 city: destCity,
                 name: shipmentData.destination_data?.name || 'Destinatario',
                 surname: 'Cliente',
-                street: shipmentData.destination_data?.address || 'Calle Destino 1',
+                street1: shipmentData.destination_data?.address || 'Calle Destino 1',
                 phone: shipmentData.destination_data?.phone || '600000001',
                 email: shipmentData.destination_data?.email || 'cliente@example.com',
             },
@@ -154,7 +149,7 @@ export async function getPacklinkLabel(shipmentData: {
                 weight: weight,
             }],
             service_id: parseInt(serviceId),
-            content: 'Paquete',
+            content: 'Paquete Ecommerce',
             content_value: shipmentData.final_price || 10,
             shipment_custom_reference: shipmentData.id,
         }),
@@ -169,34 +164,42 @@ export async function getPacklinkLabel(shipmentData: {
 
     const shipmentResult = await createResponse.json();
     const shipmentRef = shipmentResult.reference || shipmentResult.shipment_custom_reference || shipmentData.id;
-    const trackingNumber = shipmentResult.tracking_number || `PKL-${Date.now()}`;
+    const trackingNumber = shipmentResult.tracking_number || `PKL-${shipmentRef}`;
 
     console.log(`[Packlink] Shipment created! Ref: ${shipmentRef}, Tracking: ${trackingNumber}`);
 
-    // Step 2: Get the label PDF (may need a brief delay for processing)
+    // Step 2: Poll for label PDF (Packlink labels may not be immediately available)
     let labelPdf: string | null = null;
 
-    try {
-        // Wait a moment for label generation
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    for (let attempt = 0; attempt < 3; attempt++) {
+        // Wait progressively: 2s, 4s, 8s
+        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, attempt)));
 
-        const labelResponse = await fetch(`${PACKLINK_API_URL}/shipments/${shipmentRef}/labels`, {
-            headers: {
-                'Authorization': apiKey,
-            },
-            signal: AbortSignal.timeout(15000),
-        });
+        try {
+            const labelResponse = await fetch(`${PACKLINK_API_URL}/shipments/${shipmentRef}/labels`, {
+                headers: { 'Authorization': headers.Authorization },
+                signal: AbortSignal.timeout(10000),
+            });
 
-        if (labelResponse.ok) {
-            const labelData = await labelResponse.json();
-            // Packlink returns an array of label URLs
-            labelPdf = Array.isArray(labelData) ? labelData[0] : (labelData.url || labelData.label_url || null);
-            console.log(`[Packlink] Label retrieved: ${labelPdf}`);
-        } else {
-            console.warn(`[Packlink] Label not ready yet (${labelResponse.status}), tracking available.`);
+            if (labelResponse.ok) {
+                const labelData = await labelResponse.json();
+                labelPdf = Array.isArray(labelData) ? labelData[0] : (labelData.url || labelData.label_url || null);
+
+                if (labelPdf) {
+                    console.log(`[Packlink] Label retrieved on attempt ${attempt + 1}: ${labelPdf}`);
+                    break;
+                }
+            } else {
+                console.warn(`[Packlink] Label attempt ${attempt + 1} failed (${labelResponse.status})`);
+            }
+        } catch (labelErr) {
+            console.warn(`[Packlink] Label retrieval attempt ${attempt + 1} error:`, labelErr);
         }
-    } catch (labelErr) {
-        console.warn('[Packlink] Could not retrieve label PDF immediately:', labelErr);
+    }
+
+    if (!labelPdf) {
+        console.warn('[Packlink] Label not available after 3 attempts. Client can get it from Packlink dashboard.');
+        labelPdf = `https://pro.packlink.es/private/shipments/${shipmentRef}/labels`;
     }
 
     return {

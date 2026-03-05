@@ -1,7 +1,7 @@
 // ============================================================
-// Genei v2 Carrier Adapter
-// Handles Bearer Token Auth logic extending for 15 days
-// and provides real API requests to v2 endpoints.
+// Genei v2 Carrier Adapter (Production)
+// ✅ Token caching via login (15-day token, cached 14 days)
+// ✅ Avoids rate-limiting from repeated auth calls
 // ============================================================
 
 import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
@@ -9,27 +9,59 @@ import { getDemoRates } from './types';
 
 const GENEI_API_URL = 'https://apiv2.genei.es/api/v2';
 
+// ── Sistema de caché de Token ───────────────────────────────
+// El token de Genei dura 15 días. Lo cacheamos 14 días en memoria
+// para evitar que bloqueen la IP por exceso de peticiones de login.
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
-async function getGeneiToken() {
-    if (cachedToken && Date.now() < tokenExpiresAt) {
+async function getGeneiToken(): Promise<string> {
+    // Si tenemos un token válido (con margen de seguridad de 1 hora), lo reusamos
+    if (cachedToken && Date.now() < tokenExpiresAt - 3600000) {
         return cachedToken;
     }
 
-    const token = process.env.GENEI_API_KEY;
+    // Primero intentar con API key directa (si existe)
+    const directKey = process.env.GENEI_API_KEY;
+    const geneiEmail = process.env.GENEI_EMAIL;
+    const geneiPassword = process.env.GENEI_PASSWORD;
 
-    if (!token) {
-        throw new Error("[Genei] API key missing from environment variables (GENEI_API_KEY)");
+    // Si tenemos email+password, hacemos login real para obtener token fresco
+    if (geneiEmail && geneiPassword) {
+        console.log('[Genei] Authenticating via login endpoint...');
+        const response = await fetch(`${GENEI_API_URL}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: geneiEmail, password: geneiPassword }),
+            signal: AbortSignal.timeout(10000),
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error("[Genei] Auth Error:", errText);
+            throw new Error("Fallo en la autenticación con Genei v2");
+        }
+
+        const data = await response.json();
+        cachedToken = data.token;
+        // Cacheamos 14 días (en milisegundos)
+        tokenExpiresAt = Date.now() + (14 * 24 * 60 * 60 * 1000);
+        console.log('[Genei] Token cached successfully (14 days)');
+        return cachedToken!;
     }
 
-    cachedToken = token;
-    // Assume token is long-lived if provided via env, but set an arbitrary 1-day local cache timeout
-    tokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    // Fallback: usar API key directa del .env
+    if (directKey) {
+        cachedToken = directKey;
+        tokenExpiresAt = Date.now() + (24 * 60 * 60 * 1000); // 1 día de caché
+        return cachedToken;
+    }
 
-    return cachedToken;
+    throw new Error("[Genei] Missing auth: set GENEI_EMAIL+GENEI_PASSWORD or GENEI_API_KEY");
 }
 
+// ── Rate Fetching ───────────────────────────────────────────
 export const geneiAdapter: CarrierAdapter = {
     provider: 'genei',
 
@@ -56,32 +88,37 @@ export const geneiAdapter: CarrierAdapter = {
                         alto: params.parcel.height
                     }]
                 }),
-                signal: AbortSignal.timeout(8000), // Reduce timeout to 8s so users don't wait forever
+                signal: AbortSignal.timeout(8000),
             });
 
             if (!response.ok) {
                 console.error("[Genei] HTTP error:", response.status, response.statusText);
                 const errText = await response.text();
-                console.error("[Genei] HTTP error text:", errText);
+                console.error("[Genei] Body:", errText);
+
+                // Si el error es 401, invalidar token cacheado
+                if (response.status === 401) {
+                    cachedToken = null;
+                    tokenExpiresAt = 0;
+                    console.warn('[Genei] Token invalidated, will re-auth on next request');
+                }
                 return getDemoRates('genei', params.parcel);
             }
 
             const data = await response.json();
 
-            // Mapeo de la respuesta de Genei a nuestro formato estándar
             const result = (Array.isArray(data) ? data : []).map((agency: any) => ({
-                id: `genei-${agency.id}`,
+                id: `genei-${agency.id_tarifa || agency.id}`,
                 provider: 'genei' as const,
-                carrierName: agency.nombre || 'Genei Carrier',
+                carrierName: agency.nombre_agencia || agency.nombre || 'Genei Carrier',
                 serviceName: agency.nombre_servicio || 'Genei Service',
-                serviceType: 'door_to_door' as 'door_to_door' | 'drop_off', // Default for now
+                serviceType: (agency.requiere_impresora === "0" ? 'drop_off' : 'door_to_door') as 'door_to_door' | 'drop_off',
                 estimatedDays: parseInt(agency.plazo_entregas) || 5,
-                costPrice: parseFloat(agency.total),
-                finalPrice: 0, // se calcula en el orquestador
+                costPrice: parseFloat(agency.total_precio || agency.total),
+                finalPrice: 0,
                 currency: 'EUR',
             }));
 
-            // Si Genei responde con un JSON válido pero 0 agencias, devolvemos demo fallback
             if (result.length === 0) {
                 console.warn("[Genei] Returned 0 rates. Falling back to demo data.");
                 return getDemoRates('genei', params.parcel);
@@ -95,7 +132,8 @@ export const geneiAdapter: CarrierAdapter = {
     },
 };
 
-export async function getGeneiLabel(shipmentData: any) {
+// ── Label Purchase ──────────────────────────────────────────
+export async function getGeneiLabel(shipmentData: any): Promise<{ tracking: string; pdf: string | null }> {
     const token = await getGeneiToken();
 
     // Support both DB column formats: direct columns OR nested in origin_data/destination_data
@@ -108,7 +146,6 @@ export async function getGeneiLabel(shipmentData: any) {
         throw new Error(`[Genei] Missing postal codes: origin=${originPostalCode}, dest=${destPostalCode}`);
     }
 
-    // Extract dimensions from shipment
     const dimensions = shipmentData.dimensions || {};
     const weight = dimensions.weight || shipmentData.weight || 1;
     const length = dimensions.length || shipmentData.length || 30;
@@ -124,35 +161,43 @@ export async function getGeneiLabel(shipmentData: any) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            remite_nombre: shipmentData.origin_data?.name || "Remitente",
-            remite_direccion: shipmentData.origin_data?.address || "Central",
-            cp_recogida: originPostalCode,
-            pais_recogida: originCountry,
-
-            destina_nombre: shipmentData.destination_data?.name || "Destinatario",
-            destina_direccion: shipmentData.destination_data?.address || "Destino",
-            cp_entrega: destPostalCode,
-            pais_entrega: destCountry,
-
-            bultos: [{
-                peso: weight,
-                largo: length,
-                ancho: width,
-                alto: height
-            }],
-            servicio: shipmentData.rate_id?.replace("genei-", ""),
+            id_tarifa: shipmentData.rate_id?.replace("genei-", "") || shipmentData.external_id,
+            nombre_remitente: shipmentData.origin_data?.name || "Remitente",
+            direccion_remitente: shipmentData.origin_data?.address || "Central",
+            poblacion_remitente: shipmentData.origin_data?.city || "",
+            cp_remitente: originPostalCode,
+            pais_remitente: originCountry,
+            telefono_remitente: shipmentData.origin_data?.phone || "600000000",
+            email_remitente: shipmentData.origin_data?.email || process.env.ADMIN_EMAIL,
+            nombre_destinatario: shipmentData.destination_data?.name || "Destinatario",
+            direccion_destinatario: shipmentData.destination_data?.address || "Destino",
+            poblacion_destinatario: shipmentData.destination_data?.city || "",
+            cp_destinatario: destPostalCode,
+            pais_destinatario: destCountry,
+            telefono_destinatario: shipmentData.destination_data?.phone || "600000000",
+            contenido: "Bienes personales / Ecommerce",
+            bultos: [{ peso: weight, largo: length, ancho: width, alto: height }],
             referencia: shipmentData.id
         }),
         signal: AbortSignal.timeout(20000),
     });
 
     if (!response.ok) {
+        // Si 401, invalidar token
+        if (response.status === 401) {
+            cachedToken = null;
+            tokenExpiresAt = 0;
+        }
         const errText = await response.text();
         console.error("[Genei] Label purchase failed:", response.status, errText);
         throw new Error(`Error comprando etiqueta en Genei: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log(`[Genei] Label purchased! Tracking: ${data.tracking_number}, PDF: ${data.label_url}`);
-    return { tracking: data.tracking_number || `GNI-${Date.now()}`, pdf: data.label_url || null };
+    console.log(`[Genei] Label purchased! Tracking: ${data.codigo_envio || data.tracking_number}, PDF: ${data.url_etiqueta || data.label_url}`);
+
+    return {
+        tracking: data.codigo_envio || data.tracking_number || `GNI-${Date.now()}`,
+        pdf: data.url_etiqueta || data.label_url || null
+    };
 }
