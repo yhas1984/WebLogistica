@@ -1,9 +1,14 @@
 import { Shield, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata = {
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
     title: 'Política de Privacidad | WebLogistica',
-    description: 'Política de privacidad y protección de datos de WebLogistica.',
+    description: 'Nuestra política de privacidad y protección de datos. Descubre cómo manejamos responsablemente tu información dentro de la plataforma de logística.',
+    alternates: {
+        canonical: '/privacidad',
+    }
 };
 
 export default function PrivacidadPage() {

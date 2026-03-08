@@ -1,9 +1,20 @@
 import { MapPin } from 'lucide-react';
 import TrackingWidget from '@/components/tracking-widget';
 
-export const metadata = {
-    title: 'Rastrear Envío | WebLogistica',
-    description: 'Rastrea tu envío en tiempo real con WebLogistica',
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+    title: 'Rastrear Envío | Seguimiento de Paquetes en WebLogistica',
+    description: 'Rastrea el estado de tu envío en tiempo real. Introduce tu número de seguimiento (ej. WL123456) y conoce la ubicación exacta de tu paquete con DHL, SEUR, UPS y más.',
+    keywords: ['seguimiento envíos', 'rastrear paquete', 'estado envío', 'tracking DHL', 'seguimiento SEUR', 'rastreo WebLogistica'],
+    alternates: {
+        canonical: '/tracking',
+    },
+    openGraph: {
+        title: 'Rastrear Envío en Tiempo Real | WebLogistica',
+        description: 'Conoce la ubicación exacta de tu paquete al instante con múltiples transportistas en un solo lugar.',
+        url: 'https://weblogistica.vercel.app/tracking',
+    }
 };
 
 export default function TrackingPage() {

@@ -1,9 +1,14 @@
 import { FileText, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata = {
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
     title: 'Términos y Condiciones | WebLogistica',
-    description: 'Términos y condiciones de uso de los servicios de WebLogistica.',
+    description: 'Términos, condiciones de uso y políticas legales de los servicios de WebLogistica para envíos, comparativa de tarifas y pasarelas de pago.',
+    alternates: {
+        canonical: '/terminos',
+    }
 };
 
 export default function TerminosPage() {

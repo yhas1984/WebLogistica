@@ -11,14 +11,58 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://weblogistica.vercel.app'), // Ideal fallback o URL en producción real
   title: 'WebLogistica | Envíos Inteligentes al Mejor Precio',
   description:
     'Compara tarifas de envío de múltiples transportistas en tiempo real. DHL, SEUR, UPS, FedEx, Correos y más — encuentra el precio más bajo al instante.',
-  keywords: ['envíos', 'logística', 'tarifas', 'transporte', 'paquetería', 'comparador'],
+  keywords: ['envíos', 'logística', 'tarifas', 'transporte', 'paquetería', 'comparador envíos', 'mensajería barata', 'tracking envíos'],
+  authors: [{ name: 'WebLogistica' }],
+  creator: 'WebLogistica',
+  publisher: 'WebLogistica Inc.',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: '/',
+    languages: {
+      'es-ES': '/',
+    },
+  },
   openGraph: {
     title: 'WebLogistica — Agregador Logístico Global',
     description: 'El comparador de tarifas de envío más inteligente. Hasta un 40% de ahorro.',
+    url: 'https://weblogistica.vercel.app',
+    siteName: 'WebLogistica',
+    images: [
+      {
+        url: '/og-image.jpeg', // Recomendado: Crear una imagen y colocarla en public/og-image.jpeg (o usar opengraph-image.tsx nativo de Next.js)
+        width: 1200,
+        height: 630,
+        alt: 'WebLogistica Agregador Logístico',
+      },
+    ],
+    locale: 'es_ES',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'WebLogistica | Envíos Inteligentes',
+    description: 'Compara y encuentra la mejor tarifa de envío entre +50 transportistas al instante.',
+    creator: '@weblogistica',
+    images: ['/og-image.jpeg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
@@ -34,6 +78,36 @@ export default async function RootLayout({
     <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
         <script type="module" src="https://ajax.googleapis.com/ajax/libs/@googlemaps/extended-component-library/0.6.11/index.min.js"></script>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+             __html: JSON.stringify({
+               "@context": "https://schema.org",
+               "@graph": [
+                 {
+                   "@type": "WebSite",
+                   "@id": "https://weblogistica.vercel.app/#website",
+                   "url": "https://weblogistica.vercel.app/",
+                   "name": "WebLogistica",
+                   "description": "El comparador de tarifas de envío más inteligente.",
+                   "publisher": {
+                     "@id": "https://weblogistica.vercel.app/#organization"
+                   },
+                 },
+                 {
+                   "@type": "Organization",
+                   "@id": "https://weblogistica.vercel.app/#organization",
+                   "name": "WebLogistica",
+                   "url": "https://weblogistica.vercel.app/",
+                   "logo": {
+                     "@type": "ImageObject",
+                     "url": "https://weblogistica.vercel.app/icon.png" // O asegurar un og-image decente o vector
+                   }
+                 }
+               ]
+             })
+          }}
+        />
       </head>
       <body className="font-sans antialiased">
         {/* Ambient Background */}
