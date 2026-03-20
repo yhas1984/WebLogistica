@@ -1,10 +1,5 @@
-'use client';
+// Landing Page — Server Component (static content) + Client islands
 
-// ============================================================
-// Landing Page — Hero + Social Proof + Funnel + Features + FAQ
-// ============================================================
-
-import { useRef, useEffect, useState } from 'react';
 import {
   Truck,
   Shield,
@@ -13,96 +8,15 @@ import {
   ArrowDown,
   Sparkles,
   BarChart3,
-  ChevronDown,
   ArrowRight,
   Package,
   Users,
   Star,
 } from 'lucide-react';
 import { ShippingFunnel } from '@/components/shipping-funnel';
-
-// ── Animated Counter ────────────────────────────────────────
-function AnimatedCounter({ target, suffix = '', duration = 2000 }: { target: number; suffix?: string; duration?: number }) {
-  const [count, setCount] = useState(0);
-  const [started, setStarted] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setStarted(true); },
-      { threshold: 0.3 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!started) return;
-    let start = 0;
-    const step = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= target) {
-        setCount(target);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 16);
-    return () => clearInterval(timer);
-  }, [started, target, duration]);
-
-  return <span ref={ref}>{count.toLocaleString('es-ES')}{suffix}</span>;
-}
-
-// ── FAQ Accordion Item ──────────────────────────────────────
-function FaqItem({ question, answer }: { question: string; answer: string }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="bento-card !p-0 overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-6 py-5 text-left"
-      >
-        <span className="text-sm font-medium text-white pr-4">{question}</span>
-        <ChevronDown className={`w-4 h-4 text-white/40 shrink-0 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
-          }`}
-      >
-        <p className="px-6 pb-5 text-sm text-white/40 leading-relaxed">{answer}</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Scroll-reveal wrapper ───────────────────────────────────
-function RevealOnScroll({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
-      { threshold: 0.1 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className={`transition-all duration-700 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        } ${className}`}
-      style={{ transitionDelay: `${delay}ms` }}
-    >
-      {children}
-    </div>
-  );
-}
+import { AnimatedCounter } from '@/components/animated-counter';
+import { FaqItem } from '@/components/faq-item';
+import { RevealOnScroll } from '@/components/reveal-on-scroll';
 
 // ── Carrier data ────────────────────────────────────────────
 const CARRIERS = [
@@ -140,6 +54,45 @@ const FAQS = [
   {
     question: '¿Puedo rastrear mi envío?',
     answer: 'Sí, desde el momento en que se genera la etiqueta recibirás un número de seguimiento. Puedes consultar el estado en tiempo real desde nuestra sección de "Rastrear" o directamente en la web del transportista.'
+  },
+];
+
+const FEATURES = [
+  {
+    icon: <BarChart3 className="w-5 h-5" />,
+    title: 'Peso Volumétrico Inteligente',
+    desc: 'Calculamos automáticamente el peso facturable (real vs volumétrico) para que siempre sepas el precio real.',
+    color: 'icon-badge-blue',
+  },
+  {
+    icon: <Shield className="w-5 h-5" />,
+    title: 'Pago 100% Seguro',
+    desc: 'Pagos procesados por Stripe. Tu dinero protegido con estándares PCI DSS nivel 1.',
+    color: 'icon-badge-emerald',
+  },
+  {
+    icon: <Globe className="w-5 h-5" />,
+    title: 'Cobertura Global',
+    desc: 'Envía a más de 200 países. Gestión de aduanas simplificada para envíos internacionales.',
+    color: 'icon-badge-purple',
+  },
+  {
+    icon: <Truck className="w-5 h-5" />,
+    title: 'Multi-Transportista',
+    desc: 'Comparamos DHL, SEUR, UPS, FedEx, GLS, MRW, Correos y muchos más en una sola búsqueda.',
+    color: 'icon-badge-amber',
+  },
+  {
+    icon: <Zap className="w-5 h-5" />,
+    title: 'Etiquetas Instantáneas',
+    desc: 'Tras el pago, generamos tu etiqueta de envío al instante. Sin esperas, sin trámites.',
+    color: 'icon-badge-blue',
+  },
+  {
+    icon: <Sparkles className="w-5 h-5" />,
+    title: 'Rastreo en Tiempo Real',
+    desc: 'Seguimiento unificado de todos tus envíos desde una sola pantalla, con notificaciones automáticas.',
+    color: 'icon-badge-purple',
   },
 ];
 
@@ -251,7 +204,7 @@ export default function HomePage() {
             <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Transportistas verificados</p>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
-            {CARRIERS.map((carrier, i) => (
+            {CARRIERS.map((carrier) => (
               <div
                 key={carrier.name}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]
@@ -285,44 +238,7 @@ export default function HomePage() {
           </div>
         </RevealOnScroll>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            {
-              icon: <BarChart3 className="w-5 h-5" />,
-              title: 'Peso Volumétrico Inteligente',
-              desc: 'Calculamos automáticamente el peso facturable (real vs volumétrico) para que siempre sepas el precio real.',
-              color: 'icon-badge-blue',
-            },
-            {
-              icon: <Shield className="w-5 h-5" />,
-              title: 'Pago 100% Seguro',
-              desc: 'Pagos procesados por Stripe. Tu dinero protegido con estándares PCI DSS nivel 1.',
-              color: 'icon-badge-emerald',
-            },
-            {
-              icon: <Globe className="w-5 h-5" />,
-              title: 'Cobertura Global',
-              desc: 'Envía a más de 200 países. Gestión de aduanas simplificada para envíos internacionales.',
-              color: 'icon-badge-purple',
-            },
-            {
-              icon: <Truck className="w-5 h-5" />,
-              title: 'Multi-Transportista',
-              desc: 'Comparamos DHL, SEUR, UPS, FedEx, GLS, MRW, Correos y muchos más en una sola búsqueda.',
-              color: 'icon-badge-amber',
-            },
-            {
-              icon: <Zap className="w-5 h-5" />,
-              title: 'Etiquetas Instantáneas',
-              desc: 'Tras el pago, generamos tu etiqueta de envío al instante. Sin esperas, sin trámites.',
-              color: 'icon-badge-blue',
-            },
-            {
-              icon: <Sparkles className="w-5 h-5" />,
-              title: 'Rastreo en Tiempo Real',
-              desc: 'Seguimiento unificado de todos tus envíos desde una sola pantalla, con notificaciones automáticas.',
-              color: 'icon-badge-purple',
-            },
-          ].map((feat, i) => (
+          {FEATURES.map((feat, i) => (
             <RevealOnScroll key={i} delay={i * 80}>
               <div className="bento-card group hover:scale-[1.02] transition-transform duration-300">
                 <div className={`icon-badge ${feat.color} mb-4 group-hover:scale-110 transition-transform`}>{feat.icon}</div>

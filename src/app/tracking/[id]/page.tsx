@@ -6,6 +6,7 @@ import {
     Download, Hash, CalendarDays, Weight, Ruler,
     CheckCircle2, AlertTriangle,
 } from 'lucide-react';
+import type { Address, ParcelWithVolumetric } from '@/types';
 
 export const metadata = {
     title: 'Detalle de Envío | WebLogistica',
@@ -53,9 +54,10 @@ export default async function TrackingDetailPage({ params }: { params: Promise<{
     };
 
     const status = statusConfig[shipment.status] || statusConfig.quoted;
-    const origin = (shipment.origin_data as any) || {};
-    const dest = (shipment.destination_data as any) || {};
-    const dims = (shipment.dimensions as any) || {};
+    type AddressData = Address & { country?: string };
+    const origin = (shipment.origin_data as AddressData) || {} as AddressData;
+    const dest = (shipment.destination_data as AddressData) || {} as AddressData;
+    const dims = (shipment.dimensions as ParcelWithVolumetric) || {} as ParcelWithVolumetric;
 
     return (
         <div className="container mx-auto py-10 px-4 max-w-3xl">

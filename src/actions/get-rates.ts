@@ -69,14 +69,13 @@ export async function getRatesAction(
         const supabase = await createServiceClient();
         const { data: subdomainData } = await supabase
             .from('subdomains')
-            .select('markup_percentage')
-            .eq('domain', domain)
+            .select('specific_markup')
+            .eq('name', domain)
             .single();
 
         // Use 15% as fallback for generic web, otherwise apply specific subdomain markup
-        // Convert integer percentage (e.g., 15) to decimal (0.15) for the pricing formula
-        const rawMarkup = subdomainData?.markup_percentage ?? 15;
-        const subdomainMarkup = rawMarkup / 100;
+        // specific_markup stores the percentage as decimal (e.g., 0.15 for 15%)
+        const subdomainMarkup = subdomainData?.specific_markup ?? 0.15;
 
         const results = await getOptimizedRates(validation.data, subdomainMarkup);
 

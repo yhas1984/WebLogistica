@@ -18,6 +18,7 @@ import {
 import { getRatesAction, type QuoteFormState } from '@/actions/get-rates';
 import type { RateResultsData } from '@/types';
 import { calculateBillableWeight } from '@/lib/pricing';
+import type { GmpxPlacePickerElement } from '@/types/google-maps';
 
 interface QuoteFormProps {
     onResults: (data: RateResultsData) => void;
@@ -42,8 +43,8 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
     const [destCountry, setDestCountry] = useState("ES");
 
     // Refs for GMP Components
-    const originPickerRef = useRef<any>(null);
-    const destPickerRef = useRef<any>(null);
+    const originPickerRef = useRef<GmpxPlacePickerElement | null>(null);
+    const destPickerRef = useRef<GmpxPlacePickerElement | null>(null);
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
 
@@ -52,10 +53,10 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
     useEffect(() => {
         setIsMounted(true);
 
-        const extractPlaceData = (place: any) => {
+        const extractPlaceData = (place: { formattedAddress?: string; displayName?: string; addressComponents?: Array<{ longText: string; shortText: string; types: string[] }> }) => {
             let postalCode = '';
             let city = '';
-            let country = 'ES'; // Fallback
+            let country = 'ES';
             for (const component of place.addressComponents || []) {
                 const types = component.types;
                 if (types.includes('postal_code')) {
@@ -71,7 +72,13 @@ export default function QuoteForm({ onResults, subdomainMarkup = 0 }: QuoteFormP
             return { address: place.formattedAddress || place.displayName || '', postalCode, city, country };
         };
 
-        const setupPicker = (pickerRef: any, setAddress: any, setPostalCode: any, setCountry: any, setCity: any) => {
+        const setupPicker = (
+            pickerRef: React.RefObject<GmpxPlacePickerElement | null>,
+            setAddress: React.Dispatch<React.SetStateAction<string>>,
+            setPostalCode: React.Dispatch<React.SetStateAction<string>>,
+            setCountry: React.Dispatch<React.SetStateAction<string>>,
+            setCity: React.Dispatch<React.SetStateAction<string>>
+        ) => {
             const handlePlaceChange = () => {
                 const place = pickerRef.current?.value;
                 if (!place) return;

@@ -42,8 +42,10 @@ export async function POST(req: Request) {
 
             if (shipments && shipments.length > 0) {
                 userContext = `El usuario es ${user.email}. Sus envíos recientes son: ${shipments.map(s => {
-                    const originCity = typeof s.origin_data === 'object' && s.origin_data ? (s.origin_data as any).city : "desconocido";
-                    const destCity = typeof s.destination_data === 'object' && s.destination_data ? (s.destination_data as any).city : "desconocido";
+                    const originData = s.origin_data as { city?: string } | null;
+                    const destData = s.destination_data as { city?: string } | null;
+                    const originCity = originData?.city || "desconocido";
+                    const destCity = destData?.city || "desconocido";
                     return `Tracking ${s.tracking_number} (Estado: ${s.status}, de ${originCity} a ${destCity})`;
                 }).join(", ")}`;
             }
@@ -117,10 +119,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ reply });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
         console.error("Chat Error:", error);
         return NextResponse.json(
-            { reply: `(V2 - Diagnóstico) Error de Sistema: ${error.message || 'Error desconocido'}. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/` },
+            { reply: `(V2 - Diagnóstico) Error de Sistema: ${message}. 🛠️ Por favor, entra en nuestra web para gestionar tu envío: https://web-logistica-one.vercel.app/` },
             { status: 200 }
         );
     }

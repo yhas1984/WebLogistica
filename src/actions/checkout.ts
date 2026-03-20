@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
+import type { Address, ParcelWithVolumetric } from '@/types';
 
 // Helper dinámico para Vercel: Evita errores 400 de Stripe por URLs mal formadas
 const getBaseUrl = () => {
@@ -17,7 +18,15 @@ const getBaseUrl = () => {
     return 'http://localhost:3000';
 };
 
-export async function createCheckoutSession(rateId: string, rateData: any, origin: any, destination: any) {
+export async function createCheckoutSession(rateId: string, rateData: {
+    carrierName: string;
+    serviceName: string;
+    costPrice: number;
+    finalPrice: number;
+    provider: string;
+    dimensions?: ParcelWithVolumetric;
+    id?: string;
+}, origin: Address, destination: Address) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -49,8 +58,8 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
             dimensions: rateData.dimensions || {},
         };
 
-        let shipment: any;
-        let dbError: any;
+        let shipment: { id: string } | null = null;
+        let dbError: { code?: string; message?: string } | null = null;
 
         // Try with extra columns
         const result1 = await supabase
@@ -80,12 +89,10 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
         }
 
         if (dbError) throw dbError;
+        if (!shipment) throw new Error('No se pudo crear el envío');
 
         const session = await stripe.checkout.sessions.create({
-            // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
-            // automatic payment methods. 'card' covers Apple and Google Pay.
-            // If the user hasn't enabled paypal or bizum in their stripe dashboard, it will crash, so we just pass card for now.
-            payment_method_types: ['card'] as any,
+            payment_method_types: ['card'],
             line_items: [
                 {
                     price_data: {
@@ -106,11 +113,11 @@ export async function createCheckoutSession(rateId: string, rateData: any, origi
                 shipmentId: shipment.id,
                 userId: user.id,
             },
-        } as any);
+        });
 
         if (!session.url) throw new Error('No se pudo crear la sesión de Stripe');
         redirectUrl = session.url;
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Stripe] Error creating checkout session:', error);
         return { error: 'Ocurrió un error al procesar el pago. Inténtalo de nuevo.' };
     }
@@ -145,10 +152,7 @@ export async function continueCheckoutSession(shipmentId: string) {
         }
 
         const session = await stripe.checkout.sessions.create({
-            // Note: The specific clover beta version of stripe forces the use of strict strings and does not support
-            // automatic payment methods. 'card' covers Apple and Google Pay.
-            // If the user hasn't enabled paypal or bizum in their stripe dashboard, it will crash, so we just pass card for now.
-            payment_method_types: ['card'] as any,
+            payment_method_types: ['card'],
             line_items: [
                 {
                     price_data: {
@@ -169,11 +173,11 @@ export async function continueCheckoutSession(shipmentId: string) {
                 shipmentId: shipment.id,
                 userId: user.id,
             },
-        } as any);
+        });
 
         if (!session.url) throw new Error('No se pudo crear la sesión de Stripe');
         redirectUrl = session.url;
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Stripe] Error continuing checkout session:', error);
         return { error: 'Ocurrió un error al procesar el pago.' };
     }
@@ -232,7 +236,7 @@ export async function deleteShipment(shipmentId: string) {
         }
 
         console.log('[Delete] Success via admin:', deletedData.length, 'rows');
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Database] Error deleting shipment:', error);
         return { error: 'No se pudo eliminar el envío.' };
     }

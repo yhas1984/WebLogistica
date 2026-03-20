@@ -8,6 +8,15 @@ import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
 
 const SHIPPO_API_URL = 'https://api.goshippo.com';
 
+interface ShippoRate {
+    object_id: string;
+    provider: string;
+    servicelevel: { name: string };
+    estimated_days: number;
+    amount: string;
+    currency: string;
+}
+
 function getHeaders() {
     const apiKey = process.env.SHIPPO_API_KEY;
     if (!apiKey) throw new Error('[Shippo] SHIPPO_API_KEY not configured');
@@ -27,7 +36,7 @@ export const shippoAdapter: CarrierAdapter = {
             const isInternational = params.origin.country !== params.destination.country;
 
             // ── Crear Shipment para obtener tarifas ─────────────
-            const payload: Record<string, any> = {
+            const payload: Record<string, unknown> = {
                 address_from: {
                     name: "Remitente",
                     street1: "Dirección origen",
@@ -96,7 +105,7 @@ export const shippoAdapter: CarrierAdapter = {
                 return [];
             }
 
-            return data.rates.map((rate: any) => ({
+            return data.rates.map((rate: ShippoRate) => ({
                 id: `shippo-${rate.object_id}`,
                 provider: 'shippo' as const,
                 carrierName: rate.provider,
@@ -127,7 +136,7 @@ interface ShippoTransaction {
 export async function getShippoLabel(shipmentData: {
     rate_id: string;
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }): Promise<{ tracking: string; pdf: string | null }> {
     const headers = getHeaders();
 

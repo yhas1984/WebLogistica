@@ -9,6 +9,15 @@ import type { CarrierAdapter, CarrierRate, CarrierRateRequest } from './types';
 
 const PACKLINK_API_URL = 'https://api.packlink.com/v1';
 
+interface PacklinkService {
+    id: string;
+    carrier_name: string;
+    name: string;
+    collection_type: string;
+    transit_time: string;
+    price: string | { total_price: string; currency: string };
+}
+
 function getHeaders() {
     const apiKey = process.env.PACKLINK_API_KEY;
     if (!apiKey) throw new Error('[Packlink] PACKLINK_API_KEY not configured');
@@ -57,7 +66,7 @@ export const packlinkAdapter: CarrierAdapter = {
                 return [];
             }
 
-            return data.map((service: any) => ({
+            return data.map((service: PacklinkService) => ({
                 id: `packlink-${service.id}`,
                 provider: 'packlink' as const,
                 carrierName: service.carrier_name,
@@ -89,7 +98,6 @@ export async function getPacklinkLabel(shipmentData: {
     destination_country?: string;
     dimensions?: { weight?: number; length?: number; width?: number; height?: number };
     final_price?: number;
-    [key: string]: any;
 }): Promise<{ tracking: string; pdf: string | null }> {
     const headers = getHeaders();
 

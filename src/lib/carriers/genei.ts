@@ -63,6 +63,36 @@ async function getGeneiToken(): Promise<string> {
     throw new Error("[Genei] Missing auth: set GENEI_EMAIL+GENEI_PASSWORD or GENEI_API_KEY");
 }
 
+interface GeneiAgency {
+    id_tarifa?: string;
+    id?: string;
+    nombre_agencia?: string;
+    nombre?: string;
+    nombre_servicio?: string;
+    requiere_impresora?: string;
+    plazo_entregas?: string;
+    total_precio?: string;
+    total?: string;
+}
+
+// ── Label response interface ──────────────────────────────────
+interface GeneiLabelData {
+    status?: boolean;
+    success?: boolean;
+    error?: string;
+    message?: string;
+    codigo_envio?: string;
+    tracking_number?: string;
+    url_etiqueta?: string;
+    label_url?: string;
+    envio?: {
+        codigo_envio?: string;
+        tracking_number?: string;
+        url_etiqueta?: string;
+        label_url?: string;
+    };
+}
+
 // ── Rate Fetching ───────────────────────────────────────────
 export const geneiAdapter: CarrierAdapter = {
     provider: 'genei',
@@ -107,16 +137,16 @@ export const geneiAdapter: CarrierAdapter = {
                 return getDemoRates('genei', params.parcel);
             }
 
-            const data = await response.json();
+            const data: unknown = await response.json();
 
-            const result = (Array.isArray(data) ? data : []).map((agency: any) => ({
+            const result = (Array.isArray(data) ? data as GeneiAgency[] : []).map((agency) => ({
                 id: `genei-${agency.id_tarifa || agency.id}`,
                 provider: 'genei' as const,
                 carrierName: agency.nombre_agencia || agency.nombre || 'Genei Carrier',
                 serviceName: agency.nombre_servicio || 'Genei Service',
                 serviceType: (agency.requiere_impresora === "0" ? 'drop_off' : 'door_to_door') as 'door_to_door' | 'drop_off',
-                estimatedDays: parseInt(agency.plazo_entregas) || 5,
-                costPrice: parseFloat(agency.total_precio || agency.total),
+                estimatedDays: parseInt(agency.plazo_entregas || '5') || 5,
+                costPrice: parseFloat(agency.total_precio || agency.total || '0'),
                 finalPrice: 0,
                 currency: 'EUR',
             }));
@@ -135,7 +165,22 @@ export const geneiAdapter: CarrierAdapter = {
 };
 
 // ── Label Purchase ──────────────────────────────────────────
-export async function getGeneiLabel(shipmentData: any): Promise<{ tracking: string; pdf: string | null }> {
+export async function getGeneiLabel(shipmentData: {
+    id: string;
+    rate_id?: string;
+    external_id?: string;
+    weight?: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    origin_postal_code?: string;
+    origin_country?: string;
+    destination_postal_code?: string;
+    destination_country?: string;
+    origin_data?: { postalCode?: string; countryCode?: string; city?: string; name?: string; address?: string; phone?: string; email?: string };
+    destination_data?: { postalCode?: string; countryCode?: string; city?: string; name?: string; address?: string; phone?: string; email?: string };
+    dimensions?: { weight?: number; length?: number; width?: number; height?: number };
+}): Promise<{ tracking: string; pdf: string | null }> {
     const token = await getGeneiToken();
 
     // Support both DB column formats: direct columns OR nested in origin_data/destination_data
@@ -195,7 +240,7 @@ export async function getGeneiLabel(shipmentData: any): Promise<{ tracking: stri
         throw new Error(`Error comprando etiqueta en Genei: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data: GeneiLabelData = await response.json();
 
     // Genei v2 puede devolver { status: false, error: "..." } incluso con HTTP 200
     if (data.status === false || (data.success === false)) {

@@ -59,10 +59,17 @@ export function applyPricingToRates(
 }
 
 /**
+ * Estima la comisión de Stripe para transacciones europeas (1.5% + 0.25€)
+ */
+export function estimateStripeFee(finalPrice: number): number {
+    return Math.round(((finalPrice * 0.015) + 0.25) * 100) / 100;
+}
+
+/**
  * Calcula el beneficio neto real restando las comisiones de la pasarela (Stripe aprox)
  */
 export function calculateNetProfit(finalPrice: number, costPrice: number): number {
-    const stripeFee = (finalPrice * 0.029) + 0.30; // Estimación estándar de Stripe
+    const stripeFee = estimateStripeFee(finalPrice);
     const profit = finalPrice - costPrice - stripeFee;
     return Math.round(profit * 100) / 100;
 }

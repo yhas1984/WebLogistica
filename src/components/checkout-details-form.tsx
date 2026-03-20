@@ -23,11 +23,59 @@ interface CheckoutDetailsFormProps {
 }
 
 // Declare google maps types
+interface GoogleMapsAutocomplete {
+    getPlace(): {
+        formatted_address?: string;
+        displayName?: string;
+        address_components?: Array<{
+            long_name: string;
+            short_name: string;
+            types: string[];
+        }>;
+    };
+    addListener(event: string, handler: () => void): void;
+}
+
 declare global {
     interface Window {
-        google: any;
+        google: {
+            maps: {
+                places: {
+                    Autocomplete: new (
+                        input: HTMLInputElement,
+                        options: { types: string[]; fields: string[] }
+                    ) => GoogleMapsAutocomplete;
+                };
+                event: {
+                    clearInstanceListeners: (instance: unknown) => void;
+                };
+            };
+        };
         __googleMapsLoaded?: boolean;
     }
+}
+
+function extractAddressComponents(place: {
+    address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
+}) {
+    let city = '';
+    let postalCode = '';
+    let countryCode = '';
+
+    for (const component of place.address_components || []) {
+        const types = component.types as string[];
+        if (types.includes('locality') || types.includes('postal_town')) {
+            city = component.long_name;
+        }
+        if (types.includes('postal_code')) {
+            postalCode = component.long_name;
+        }
+        if (types.includes('country')) {
+            countryCode = component.short_name;
+        }
+    }
+
+    return { city, postalCode, countryCode };
 }
 
 export function CheckoutDetailsForm({
@@ -58,8 +106,62 @@ export function CheckoutDetailsForm({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const originInputRef = useRef<HTMLInputElement>(null);
     const destInputRef = useRef<HTMLInputElement>(null);
-    const originAutocompleteRef = useRef<any>(null);
-    const destAutocompleteRef = useRef<any>(null);
+    const originAutocompleteRef = useRef<GoogleMapsAutocomplete | null>(null);
+    const destAutocompleteRef = useRef<GoogleMapsAutocomplete | null>(null);
+
+    const initAutocomplete = useCallback(() => {
+        if (!window.google?.maps?.places) return;
+
+        // Origin autocomplete
+        if (originInputRef.current && !originAutocompleteRef.current) {
+            originAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+                originInputRef.current,
+                {
+                    types: ['address'],
+                    fields: ['formatted_address', 'address_components', 'geometry'],
+                }
+            );
+
+            originAutocompleteRef.current.addListener('place_changed', () => {
+                const place = originAutocompleteRef.current!.getPlace();
+                if (!place?.address_components) return;
+
+                const extracted = extractAddressComponents(place);
+                setOrigin(prev => ({
+                    ...prev,
+                    address: place.formatted_address || '',
+                    city: extracted.city || prev.city,
+                    postalCode: extracted.postalCode || prev.postalCode,
+                    countryCode: extracted.countryCode || prev.countryCode,
+                }));
+            });
+        }
+
+        // Destination autocomplete
+        if (destInputRef.current && !destAutocompleteRef.current) {
+            destAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+                destInputRef.current,
+                {
+                    types: ['address'],
+                    fields: ['formatted_address', 'address_components', 'geometry'],
+                }
+            );
+
+            destAutocompleteRef.current.addListener('place_changed', () => {
+                const place = destAutocompleteRef.current!.getPlace();
+                if (!place?.address_components) return;
+
+                const extracted = extractAddressComponents(place);
+                setDest(prev => ({
+                    ...prev,
+                    address: place.formatted_address || '',
+                    city: extracted.city || prev.city,
+                    postalCode: extracted.postalCode || prev.postalCode,
+                    countryCode: extracted.countryCode || prev.countryCode,
+                }));
+            });
+        }
+    }, []);
 
     // Load Google Maps script if not already loaded
     useEffect(() => {
@@ -103,82 +205,7 @@ export function CheckoutDetailsForm({
                 window.google?.maps?.event?.clearInstanceListeners(destAutocompleteRef.current);
             }
         };
-    }, []);
-
-    const initAutocomplete = useCallback(() => {
-        if (!window.google?.maps?.places) return;
-
-        // Origin autocomplete
-        if (originInputRef.current && !originAutocompleteRef.current) {
-            originAutocompleteRef.current = new window.google.maps.places.Autocomplete(
-                originInputRef.current,
-                {
-                    types: ['address'],
-                    fields: ['formatted_address', 'address_components', 'geometry'],
-                }
-            );
-
-            originAutocompleteRef.current.addListener('place_changed', () => {
-                const place = originAutocompleteRef.current.getPlace();
-                if (!place?.address_components) return;
-
-                const extracted = extractAddressComponents(place);
-                setOrigin(prev => ({
-                    ...prev,
-                    address: place.formatted_address || '',
-                    city: extracted.city || prev.city,
-                    postalCode: extracted.postalCode || prev.postalCode,
-                    countryCode: extracted.countryCode || prev.countryCode,
-                }));
-            });
-        }
-
-        // Destination autocomplete
-        if (destInputRef.current && !destAutocompleteRef.current) {
-            destAutocompleteRef.current = new window.google.maps.places.Autocomplete(
-                destInputRef.current,
-                {
-                    types: ['address'],
-                    fields: ['formatted_address', 'address_components', 'geometry'],
-                }
-            );
-
-            destAutocompleteRef.current.addListener('place_changed', () => {
-                const place = destAutocompleteRef.current.getPlace();
-                if (!place?.address_components) return;
-
-                const extracted = extractAddressComponents(place);
-                setDest(prev => ({
-                    ...prev,
-                    address: place.formatted_address || '',
-                    city: extracted.city || prev.city,
-                    postalCode: extracted.postalCode || prev.postalCode,
-                    countryCode: extracted.countryCode || prev.countryCode,
-                }));
-            });
-        }
-    }, []);
-
-    function extractAddressComponents(place: any) {
-        let city = '';
-        let postalCode = '';
-        let countryCode = '';
-
-        for (const component of place.address_components || []) {
-            const types = component.types as string[];
-            if (types.includes('locality') || types.includes('postal_town')) {
-                city = component.long_name;
-            }
-            if (types.includes('postal_code')) {
-                postalCode = component.long_name;
-            }
-            if (types.includes('country')) {
-                countryCode = component.short_name;
-            }
-        }
-
-        return { city, postalCode, countryCode };
-    }
+    }, [initAutocomplete]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -190,8 +217,11 @@ export function CheckoutDetailsForm({
         onProceedToPayment(origin, dest);
     };
 
-    const inputClasses = (color: string) =>
-        `w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-${color}-500/50 focus:ring-1 focus:ring-${color}-500/20 transition-all`;
+    const inputClassMap: Record<string, string> = {
+        blue: 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all',
+        purple: 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all',
+    };
+    const inputClasses = (color: string) => inputClassMap[color] ?? inputClassMap.blue;
 
     return (
         <div className="max-w-5xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-4 duration-700">

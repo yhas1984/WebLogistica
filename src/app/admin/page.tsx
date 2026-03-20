@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { approveManualPayment, deleteShipmentAdmin, updateShipmentStatusAdmin } from "@/actions/admin";
+import { estimateStripeFee } from "@/lib/pricing";
 import {
     DollarSign,
     TrendingUp,
@@ -157,10 +158,10 @@ export default async function AdminDashboardPage() {
     const totalRevenue = paidShipments.reduce((acc, s) => acc + (s.final_price || 0), 0);
     const totalCost = paidShipments.reduce((acc, s) => acc + (s.cost_price || 0), 0);
 
-    // Stripe fees (aprox 1.5% + 0.25€ per European transaction)
+    // Stripe fees (European transaction estimate)
     const totalStripeFees = paidShipments.reduce((acc, s) => {
         if (s.stripe_session_id || s.stripe_payment_id) {
-            return acc + ((s.final_price || 0) * 0.015 + 0.25);
+            return acc + estimateStripeFee(s.final_price || 0);
         }
         return acc;
     }, 0);
@@ -252,7 +253,7 @@ export default async function AdminDashboardPage() {
                         <tbody>
                             {rows.map((shipment) => {
                                 const isStripe = !!(shipment.stripe_session_id || shipment.stripe_payment_id);
-                                const stripeFee = isStripe ? ((shipment.final_price || 0) * 0.015 + 0.25) : 0;
+                                const stripeFee = isStripe ? estimateStripeFee(shipment.final_price || 0) : 0;
                                 const profit = (shipment.final_price || 0) - (shipment.cost_price || 0) - stripeFee;
                                 const profitMargin = shipment.final_price && shipment.final_price > 0
                                     ? (profit / shipment.final_price) * 100

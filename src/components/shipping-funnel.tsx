@@ -93,7 +93,7 @@ export function ShippingFunnel() {
                 }
             }
             // Note: redirect is handled inside createCheckoutSession via next/navigation
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('[ShippingFunnel] Checkout Error:', err);
             setError('Ocurrió un error inesperado al procesar el pago.');
             setIsCheckingOut(false);

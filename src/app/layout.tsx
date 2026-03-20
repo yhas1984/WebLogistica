@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     siteName: 'WebLogistica',
     images: [
       {
-        url: '/og-image.jpeg', // Recomendado: Crear una imagen y colocarla en public/og-image.jpeg (o usar opengraph-image.tsx nativo de Next.js)
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
         alt: 'WebLogistica Agregador Logístico',
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     title: 'WebLogistica | Envíos Inteligentes',
     description: 'Compara y encuentra la mejor tarifa de envío entre +50 transportistas al instante.',
     creator: '@weblogistica',
-    images: ['/og-image.jpeg'],
+    images: ['/opengraph-image'],
   },
   robots: {
     index: true,
@@ -99,10 +99,10 @@ export default async function RootLayout({
                    "@id": "https://weblogistica.vercel.app/#organization",
                    "name": "WebLogistica",
                    "url": "https://weblogistica.vercel.app/",
-                   "logo": {
-                     "@type": "ImageObject",
-                     "url": "https://weblogistica.vercel.app/icon.png" // O asegurar un og-image decente o vector
-                   }
+                    "logo": {
+                      "@type": "ImageObject",
+                      "url": "https://weblogistica.vercel.app/favicon.ico"
+                    }
                  }
                ]
              })

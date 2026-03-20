@@ -104,7 +104,18 @@ export async function getTracking(
             };
         }
 
-        const data = await response.json();
+        const data: {
+            tracking_number: string;
+            carrier: string;
+            tracking_status?: { status: string };
+            eta?: string;
+            tracking_history?: Array<{
+                location?: { city?: string; country?: string };
+                status_date: string;
+                status_details?: string;
+                status?: string;
+            }>;
+        } = await response.json();
 
         return {
             id: data.tracking_number,
@@ -114,7 +125,7 @@ export async function getTracking(
             title: `Shipment ${data.tracking_number}`,
             expected_delivery: data.eta || null,
             provider: 'shippo',
-            checkpoints: (data.tracking_history || []).map((checkpoint: any) => ({
+            checkpoints: (data.tracking_history || []).map((checkpoint) => ({
                 slug: data.carrier,
                 city: checkpoint.location?.city || '',
                 created_at: checkpoint.status_date,
